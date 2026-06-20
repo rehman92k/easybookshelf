@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev --turbopack --port 3002",
     "build": "next build",
+    "postbuild": "node ../../scripts/prepare-next-standalone.mjs",
     "start": "next start --port 3002",
     "lint": "next lint",
     "typecheck": "tsc --noEmit"
