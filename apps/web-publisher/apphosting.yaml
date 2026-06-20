@@ -9,5 +9,5 @@ runConfig:
   memoryMiB: 512
 
 scripts:
-  buildCommand: corepack enable && corepack prepare pnpm@9.15.9 --activate && pnpm install --frozen-lockfile && pnpm --filter @easybookshelf/web-publisher build
+  buildCommand: corepack enable && corepack prepare pnpm@9.15.9 --activate && pnpm install --frozen-lockfile && pnpm --filter @easybookshelf/web-publisher... build
   runCommand: node apps/web-publisher/.next/standalone/apps/web-publisher/server.js
