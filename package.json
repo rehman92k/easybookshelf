@@ -30,7 +30,10 @@
     "dev:remove-role": "pnpm --filter @easybookshelf/database remove-user-role",
     "dev:create-super-admin": "pnpm --filter @easybookshelf/api create-super-admin",
     "db:studio": "pnpm --filter @easybookshelf/database studio",
-    "setup": "pnpm docker:up && cp -n packages/database/.env.example packages/database/.env 2>/dev/null; cp -n apps/api/.env.example apps/api/.env 2>/dev/null; pnpm db:migrate && pnpm db:seed"
+    "setup": "pnpm docker:up && cp -n packages/database/.env.example packages/database/.env 2>/dev/null; cp -n apps/api/.env.example apps/api/.env 2>/dev/null; pnpm db:migrate && pnpm db:seed",
+    "apphosting:build:reader": "pnpm --filter @easybookshelf/web-reader... build",
+    "apphosting:build:publisher": "pnpm --filter @easybookshelf/web-publisher... build",
+    "apphosting:build:admin": "pnpm --filter @easybookshelf/web-admin... build"
   },
   "devDependencies": {
     "@easybookshelf/tsconfig": "workspace:*",

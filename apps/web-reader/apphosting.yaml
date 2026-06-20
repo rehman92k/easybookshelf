@@ -11,5 +11,6 @@ runConfig:
   memoryMiB: 512
 
 scripts:
-  buildCommand: corepack enable && corepack prepare pnpm@9.15.9 --activate && pnpm install --frozen-lockfile && pnpm --filter @easybookshelf/web-reader... build
+  # Use root package.json script — unquoted @ in YAML breaks buildCommand parsing
+  buildCommand: "corepack enable && corepack prepare pnpm@9.15.9 --activate && pnpm install --frozen-lockfile && pnpm run apphosting:build:reader"
   runCommand: node apps/web-reader/.next/standalone/apps/web-reader/server.js
