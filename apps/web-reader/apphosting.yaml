@@ -3,6 +3,16 @@
 # Build/run commands execute from repository root.
 # Docs: https://firebase.google.com/docs/app-hosting/monorepos
 
+# Do NOT set buildCommand here — it breaks pnpm monorepos (buildpack strips package.json).
+# Build is defined as apphosting:build in root package.json instead.
+# Set env APPHOSTING_BACKEND=reader|publisher|admin per backend in Firebase Console.
+
+env:
+  - variable: APPHOSTING_BACKEND
+    value: reader
+    availability:
+      - BUILD
+
 runConfig:
   minInstances: 0
   maxInstances: 10
@@ -11,6 +21,4 @@ runConfig:
   memoryMiB: 512
 
 scripts:
-  # Use root package.json script — unquoted @ in YAML breaks buildCommand parsing
-  buildCommand: "corepack enable && corepack prepare pnpm@9.15.9 --activate && pnpm install --frozen-lockfile && pnpm run apphosting:build:reader"
   runCommand: node apps/web-reader/.next/standalone/apps/web-reader/server.js
