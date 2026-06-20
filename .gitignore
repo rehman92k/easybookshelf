@@ -39,3 +39,4 @@ coverage
 # Local book file storage (M8) — root uploads dir only; do not match apps/api/src/storage/
 /storage/
 apps/api/storage/
+.github/workflows/
