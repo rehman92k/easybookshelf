@@ -1,0 +1,41 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Build outputs
+dist
+.next
+out
+build
+.turbo
+
+# Environment
+.env
+.env.*
+!.env.example
+**/firebase-service-account.json
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Testing
+coverage
+
+# Misc
+*.tsbuildinfo
+
+# Local book file storage (M8) — root uploads dir only; do not match apps/api/src/storage/
+/storage/
+apps/api/storage/

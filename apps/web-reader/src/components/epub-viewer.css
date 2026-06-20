@@ -1,0 +1,22 @@
+.epub-viewer-host {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  min-height: 480px;
+  min-width: 0;
+}
+
+.epub-viewer-host .epub-container {
+  position: absolute !important;
+  inset: 0 !important;
+  height: 100% !important;
+  width: 100% !important;
+  overflow: hidden !important;
+}
+
+/* epub.js sets explicit iframe dimensions — do not override with 100% width/height. */
+.epub-viewer-host .epub-view iframe {
+  display: block;
+  border: 0;
+  box-sizing: border-box;
+}

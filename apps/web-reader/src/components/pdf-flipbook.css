@@ -1,0 +1,105 @@
+.flipbook-scene {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  max-width: 100%;
+  flex: 1;
+  padding: 1rem 0;
+  transition: opacity 0.15s ease;
+}
+
+.flipbook-scene--loading {
+  opacity: 0.72;
+}
+
+.flipbook-book {
+  position: relative;
+  filter: drop-shadow(0 16px 32px rgba(28, 25, 23, 0.18));
+}
+
+.flipbook-book--single {
+  display: flex;
+  justify-content: center;
+}
+
+.flipbook-book--spread {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.flipbook-page {
+  display: block;
+  flex-shrink: 0;
+  background: #fff;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(120, 113, 108, 0.12);
+}
+
+.flipbook-book--single .flipbook-page {
+  border-radius: 4px;
+}
+
+.flipbook-book--spread .flipbook-page--left {
+  border-radius: 4px 0 0 4px;
+  box-shadow: inset -1px 0 0 rgba(120, 113, 108, 0.15);
+}
+
+.flipbook-book--spread .flipbook-page--right {
+  border-radius: 0 4px 4px 0;
+}
+
+.flipbook-book--spread .flipbook-page--cover {
+  border-radius: 4px;
+  margin-left: auto;
+}
+
+.flipbook-spine {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 12px;
+  transform: translateX(-50%);
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(
+    to right,
+    rgba(0, 0, 0, 0.06),
+    rgba(0, 0, 0, 0.14),
+    rgba(0, 0, 0, 0.06)
+  );
+}
+
+.flipbook-nav {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(120, 113, 108, 0.25);
+  background: rgba(255, 255, 255, 0.92);
+  color: #44403c;
+  box-shadow: 0 8px 24px rgba(28, 25, 23, 0.12);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+
+.flipbook-nav:hover:not(:disabled) {
+  transform: scale(1.06);
+  box-shadow: 0 12px 28px rgba(28, 25, 23, 0.16);
+}
+
+.flipbook-nav:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+@media (min-width: 640px) {
+  .flipbook-nav {
+    width: 3.5rem;
+    height: 3.5rem;
+  }
+}

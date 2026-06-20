@@ -1,0 +1,27 @@
+/** Shared interactive affordances — imported by all web apps. */
+@layer base {
+  :is(
+    a[href],
+    area[href],
+    button:not(:disabled),
+    input[type='button']:not(:disabled),
+    input[type='submit']:not(:disabled),
+    input[type='reset']:not(:disabled),
+    input[type='checkbox']:not(:disabled),
+    input[type='radio']:not(:disabled),
+    label[for],
+    select:not(:disabled),
+    summary,
+    [role='button']:not([aria-disabled='true']),
+    [role='link'],
+    [role='menuitem'],
+    [role='tab'],
+    [role='option']
+  ) {
+    cursor: pointer;
+  }
+
+  :is(button:disabled, input:disabled, select:disabled, [aria-disabled='true']) {
+    cursor: not-allowed;
+  }
+}

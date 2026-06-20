@@ -1,0 +1,13 @@
+# Firebase App Hosting — Admin (monorepo)
+# Console: set backend rootDirectory = apps/web-admin
+
+runConfig:
+  minInstances: 0
+  maxInstances: 5
+  concurrency: 80
+  cpu: 1
+  memoryMiB: 512
+
+scripts:
+  buildCommand: corepack enable && corepack prepare pnpm@9.15.9 --activate && pnpm install --frozen-lockfile && pnpm --filter @easybookshelf/web-admin build
+  runCommand: node apps/web-admin/.next/standalone/apps/web-admin/server.js

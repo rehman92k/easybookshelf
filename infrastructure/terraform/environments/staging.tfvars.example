@@ -1,0 +1,4 @@
+# Staging environment variables (template)
+# aws_region = "ap-south-1"
+# environment = "staging"
+# db_instance_class = "db.t3.micro"

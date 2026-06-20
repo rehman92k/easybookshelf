@@ -1,0 +1,390 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import type { BookFormat, Category, Language } from '@easybookshelf/shared-types';
+import { Button, Alert, Card, PageHeader, PageLoading } from '@easybookshelf/ui';
+import { PublisherAuthGate } from '@/components/publisher-auth-gate';
+import { useAuth } from '@/components/auth-provider';
+import { fetchCurrentUser, refreshAccessTokenFromBearer } from '@/lib/auth';
+import {
+  createPublisherBook,
+  fetchCategories,
+  fetchLanguages,
+  fetchPublisherProfile,
+  submitBookForReview,
+  uploadBookFile,
+} from '@/lib/publisher';
+
+export default function UploadPage() {
+  const router = useRouter();
+  const { user, loading } = useAuth();
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [languages, setLanguages] = useState<Language[]>([]);
+  const [ready, setReady] = useState(false);
+  const [initError, setInitError] = useState<string | null>(null);
+  const [redirecting, setRedirecting] = useState<string | null>(null);
+  const [bookId, setBookId] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const [title, setTitle] = useState('');
+  const [subtitle, setSubtitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [authorName, setAuthorName] = useState('');
+  const [isbn, setIsbn] = useState('');
+  const [format, setFormat] = useState<BookFormat>('epub');
+  const [categoryId, setCategoryId] = useState('');
+  const [languageId, setLanguageId] = useState('');
+  const [purchase, setPurchase] = useState('299');
+  const [rental15, setRental15] = useState('49');
+  const [rental30, setRental30] = useState('79');
+  const [epubFile, setEpubFile] = useState<File | null>(null);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+
+  useEffect(() => {
+    if (loading) return;
+
+    let cancelled = false;
+
+    async function init() {
+      try {
+        const activeUser = user ?? (await fetchCurrentUser());
+        if (cancelled) return;
+
+        if (!activeUser) {
+          setReady(false);
+          return;
+        }
+
+        await refreshAccessTokenFromBearer();
+        if (cancelled) return;
+
+        let publisherProfile;
+        try {
+          publisherProfile = await fetchPublisherProfile();
+        } catch {
+          if (!cancelled) {
+            setRedirecting('Complete publisher onboarding first. Redirecting…');
+            router.replace('/onboard');
+            window.setTimeout(() => {
+              window.location.assign('/onboard');
+            }, 1500);
+          }
+          return;
+        }
+
+        const [cats, langs] = await Promise.all([fetchCategories(), fetchLanguages()]);
+        if (cancelled) return;
+
+        setCategories(cats);
+        setLanguages(langs);
+        if (cats[0]) setCategoryId(cats[0].id);
+        if (langs[0]) setLanguageId(langs[0].id);
+        setAuthorName(publisherProfile.name);
+        setReady(true);
+      } catch (err) {
+        if (!cancelled) {
+          setInitError(err instanceof Error ? err.message : 'Failed to load upload page');
+        }
+      }
+    }
+
+    void init();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, user, router]);
+
+  async function handleCreateAndUpload(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const book = await createPublisherBook({
+        title,
+        subtitle: subtitle || undefined,
+        description: description || undefined,
+        authorName,
+        isbn: isbn || undefined,
+        format,
+        categoryIds: [categoryId],
+        languageIds: [languageId],
+        prices: {
+          purchase: Number(purchase),
+          rental15: Number(rental15),
+          rental30: Number(rental30),
+        },
+      });
+
+      setBookId(book.id);
+
+      if (format === 'epub' && epubFile) {
+        await uploadBookFile(book.id, epubFile, 'epub');
+      }
+      if (format === 'pdf' && pdfFile) {
+        await uploadBookFile(book.id, pdfFile, 'pdf');
+      }
+
+      const submitted = await submitBookForReview(book.id);
+      setSuccess(`"${submitted.title}" submitted for review.`);
+      router.push('/books');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (redirecting) {
+    return (
+      <PublisherAuthGate loginNext="/upload">
+        <PageLoading message={redirecting} />
+      </PublisherAuthGate>
+    );
+  }
+
+  if (initError) {
+    return (
+      <PublisherAuthGate loginNext="/upload">
+        <Alert variant="error">{initError}</Alert>
+        <Link href="/" className="mt-4 inline-block text-sm text-amber-700 hover:underline">
+          Back to dashboard
+        </Link>
+      </PublisherAuthGate>
+    );
+  }
+
+  if (loading || !user || !ready) {
+    return (
+      <PublisherAuthGate loginNext="/upload">
+        <PageLoading message="Preparing upload form…" />
+      </PublisherAuthGate>
+    );
+  }
+
+  return (
+    <PublisherAuthGate loginNext="/upload">
+      <PageHeader
+        title="Upload a book"
+        description="Add metadata, upload EPUB/PDF files, and submit for admin approval."
+      />
+
+      {error && (
+        <Alert variant="error" className="mb-4">
+          {error}
+        </Alert>
+      )}
+      {success && (
+        <Alert variant="success" className="mb-4">
+          {success}
+        </Alert>
+      )}
+
+      <Card className="max-w-2xl">
+      <form onSubmit={handleCreateAndUpload} className="space-y-5">
+        <div>
+          <label htmlFor="title" className="text-sm font-medium">
+            Title
+          </label>
+          <input
+            id="title"
+            required
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-stone-300 px-4 py-2 text-sm dark:border-stone-700 dark:bg-stone-900"
+          />
+        </div>
+        <div>
+          <label htmlFor="subtitle" className="text-sm font-medium">
+            Subtitle <span className="font-normal text-stone-500">(optional)</span>
+          </label>
+          <input
+            id="subtitle"
+            value={subtitle}
+            onChange={(e) => setSubtitle(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-stone-300 px-4 py-2 text-sm dark:border-stone-700 dark:bg-stone-900"
+          />
+        </div>
+        <div>
+          <label htmlFor="description" className="text-sm font-medium">
+            Description
+          </label>
+          <textarea
+            id="description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={4}
+            className="mt-1 w-full rounded-lg border border-stone-300 px-4 py-2 text-sm dark:border-stone-700 dark:bg-stone-900"
+          />
+        </div>
+        <div>
+          <label htmlFor="publisher-name" className="text-sm font-medium">
+            Publisher name
+          </label>
+          <input
+            id="publisher-name"
+            required
+            value={authorName}
+            onChange={(e) => setAuthorName(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-stone-300 px-4 py-2 text-sm dark:border-stone-700 dark:bg-stone-900"
+          />
+        </div>
+        <div>
+          <label htmlFor="isbn" className="text-sm font-medium">
+            ISBN <span className="font-normal text-stone-500">(optional)</span>
+          </label>
+          <input
+            id="isbn"
+            value={isbn}
+            onChange={(e) => setIsbn(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-stone-300 px-4 py-2 text-sm dark:border-stone-700 dark:bg-stone-900"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="format" className="text-sm font-medium">
+            File format
+          </label>
+          <select
+            id="format"
+            value={format}
+            onChange={(e) => setFormat(e.target.value as BookFormat)}
+            className="mt-1 w-full rounded-lg border border-stone-300 px-4 py-2 text-sm dark:border-stone-700 dark:bg-stone-900"
+          >
+            <option value="epub">EPUB</option>
+            <option value="pdf">PDF</option>
+          </select>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label htmlFor="category" className="text-sm font-medium">
+              Category
+            </label>
+            <select
+              id="category"
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-stone-300 px-4 py-2 text-sm dark:border-stone-700 dark:bg-stone-900"
+            >
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="language" className="text-sm font-medium">
+              Language
+            </label>
+            <select
+              id="language"
+              value={languageId}
+              onChange={(e) => setLanguageId(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-stone-300 px-4 py-2 text-sm dark:border-stone-700 dark:bg-stone-900"
+            >
+              {languages.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div>
+            <label htmlFor="purchase-price" className="text-sm font-medium">
+              Buy price (₹)
+            </label>
+            <input
+              id="purchase-price"
+              required
+              type="number"
+              min={9}
+              value={purchase}
+              onChange={(e) => setPurchase(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-stone-300 px-4 py-2 text-sm dark:border-stone-700 dark:bg-stone-900"
+            />
+          </div>
+          <div>
+            <label htmlFor="rental-15" className="text-sm font-medium">
+              15-day rent (₹)
+            </label>
+            <input
+              id="rental-15"
+              required
+              type="number"
+              min={9}
+              value={rental15}
+              onChange={(e) => setRental15(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-stone-300 px-4 py-2 text-sm dark:border-stone-700 dark:bg-stone-900"
+            />
+          </div>
+          <div>
+            <label htmlFor="rental-30" className="text-sm font-medium">
+              30-day rent (₹)
+            </label>
+            <input
+              id="rental-30"
+              required
+              type="number"
+              min={9}
+              value={rental30}
+              onChange={(e) => setRental30(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-stone-300 px-4 py-2 text-sm dark:border-stone-700 dark:bg-stone-900"
+            />
+          </div>
+        </div>
+
+        {(format === 'epub') && (
+          <div>
+            <label htmlFor="epub-file" className="text-sm font-medium">
+              EPUB file
+            </label>
+            <input
+              id="epub-file"
+              required
+              type="file"
+              accept=".epub,application/epub+zip"
+              onChange={(e) => setEpubFile(e.target.files?.[0] ?? null)}
+              className="mt-1 block w-full text-sm"
+            />
+          </div>
+        )}
+
+        {(format === 'pdf') && (
+          <div>
+            <label htmlFor="pdf-file" className="text-sm font-medium">
+              PDF file
+            </label>
+            <input
+              id="pdf-file"
+              required
+              type="file"
+              accept=".pdf,application/pdf"
+              onChange={(e) => setPdfFile(e.target.files?.[0] ?? null)}
+              className="mt-1 block w-full text-sm"
+            />
+          </div>
+        )}
+
+        <Button type="submit" disabled={submitting}>
+          {submitting ? 'Uploading...' : 'Upload and submit for review'}
+        </Button>
+      </form>
+
+      {bookId && (
+        <p className="mt-4 text-xs text-stone-500">Draft book id: {bookId}</p>
+      )}
+      </Card>
+    </PublisherAuthGate>
+  );
+}

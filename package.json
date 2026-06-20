@@ -1,0 +1,47 @@
+{
+  "name": "easybookshelf",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=20.11.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "dev:api": "turbo run dev --filter=@easybookshelf/api",
+    "dev:reader": "turbo run dev --filter=@easybookshelf/web-reader",
+    "dev:publisher": "turbo run dev --filter=@easybookshelf/web-publisher",
+    "dev:admin": "turbo run dev --filter=@easybookshelf/web-admin",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md}\"",
+    "docker:up": "docker compose -f docker/docker-compose.yml up -d",
+    "docker:down": "docker compose -f docker/docker-compose.yml down",
+    "docker:logs": "docker compose -f docker/docker-compose.yml logs -f",
+    "db:generate": "pnpm --filter @easybookshelf/database generate",
+    "db:migrate": "pnpm --filter @easybookshelf/database migrate:dev",
+    "db:migrate:deploy": "pnpm --filter @easybookshelf/database migrate:deploy",
+    "db:seed": "pnpm --filter @easybookshelf/database seed",
+    "dev:delete-user": "pnpm --filter @easybookshelf/database delete-dev-user",
+    "dev:remove-role": "pnpm --filter @easybookshelf/database remove-user-role",
+    "dev:create-super-admin": "pnpm --filter @easybookshelf/api create-super-admin",
+    "db:studio": "pnpm --filter @easybookshelf/database studio",
+    "setup": "pnpm docker:up && cp -n packages/database/.env.example packages/database/.env 2>/dev/null; cp -n apps/api/.env.example apps/api/.env 2>/dev/null; pnpm db:migrate && pnpm db:seed"
+  },
+  "devDependencies": {
+    "@easybookshelf/tsconfig": "workspace:*",
+    "pnpm": "9.15.9",
+    "prettier": "^3.5.3",
+    "turbo": "^2.5.4",
+    "typescript": "^5.8.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "jose": "4.15.9"
+    }
+  }
+}
