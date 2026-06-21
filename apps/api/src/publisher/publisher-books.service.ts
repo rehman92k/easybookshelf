@@ -16,6 +16,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { PublisherService } from './publisher.service';
 import { CreatePublisherBookDto } from './dto/create-publisher-book.dto';
+import { UpdatePublisherBookDto } from './dto/update-publisher-book.dto';
 
 const bookInclude = {
   prices: { orderBy: { effectiveFrom: 'desc' as const }, take: 1 },
@@ -125,6 +126,92 @@ export class PublisherBooksService {
     return this.toPublisherBook(book);
   }
 
+  async updateBook(userId: string, bookId: string, dto: UpdatePublisherBookDto) {
+    const publisher = await this.publisherService.requirePublisher(userId);
+    const book = await this.prisma.book.findFirst({
+      where: { id: bookId, publisherId: publisher.id },
+    });
+
+    if (!book) {
+      throw new NotFoundException({ code: 'BOOK_NOT_FOUND', message: 'Book not found' });
+    }
+
+    this.assertBookEditable(book.status);
+
+    const hasUpdates =
+      dto.title !== undefined ||
+      dto.subtitle !== undefined ||
+      dto.description !== undefined ||
+      dto.authorName !== undefined ||
+      dto.isbn !== undefined ||
+      dto.format !== undefined ||
+      dto.previewPageCount !== undefined ||
+      dto.prices !== undefined ||
+      dto.categoryIds !== undefined ||
+      dto.languageIds !== undefined;
+
+    if (!hasUpdates) {
+      throw new BadRequestException({
+        code: 'NO_UPDATES',
+        message: 'No fields to update',
+      });
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.book.update({
+        where: { id: book.id },
+        data: {
+          ...(dto.title !== undefined && { title: dto.title }),
+          ...(dto.subtitle !== undefined && { subtitle: dto.subtitle }),
+          ...(dto.description !== undefined && { description: dto.description }),
+          ...(dto.authorName !== undefined && { authorName: dto.authorName }),
+          ...(dto.isbn !== undefined && { isbn: dto.isbn }),
+          ...(dto.format !== undefined && { format: dto.format }),
+          ...(dto.previewPageCount !== undefined && { previewPageCount: dto.previewPageCount }),
+        },
+      });
+
+      if (dto.prices) {
+        await tx.bookPrice.create({
+          data: {
+            bookId: book.id,
+            purchasePrice: dto.prices.purchase,
+            rental15Price: dto.prices.rental15,
+            rental30Price: dto.prices.rental30,
+            currency: 'INR',
+          },
+        });
+      }
+
+      if (dto.categoryIds) {
+        await tx.bookCategory.deleteMany({ where: { bookId: book.id } });
+        await tx.bookCategory.createMany({
+          data: dto.categoryIds.map((categoryId) => ({
+            bookId: book.id,
+            categoryId,
+          })),
+        });
+      }
+
+      if (dto.languageIds) {
+        await tx.bookLanguage.deleteMany({ where: { bookId: book.id } });
+        await tx.bookLanguage.createMany({
+          data: dto.languageIds.map((languageId) => ({
+            bookId: book.id,
+            languageId,
+          })),
+        });
+      }
+
+      return tx.book.findUniqueOrThrow({
+        where: { id: book.id },
+        include: bookInclude,
+      });
+    });
+
+    return this.toPublisherBook(updated);
+  }
+
   async uploadFile(
     userId: string,
     bookId: string,
@@ -141,12 +228,7 @@ export class PublisherBooksService {
       throw new NotFoundException({ code: 'BOOK_NOT_FOUND', message: 'Book not found' });
     }
 
-    if (book.status !== BookStatus.draft && book.status !== BookStatus.rejected) {
-      throw new ForbiddenException({
-        code: 'BOOK_NOT_EDITABLE',
-        message: 'Only draft or rejected books can be updated',
-      });
-    }
+    this.assertBookEditable(book.status);
 
     this.validateFile(file, format);
 
@@ -197,12 +279,7 @@ export class PublisherBooksService {
       throw new NotFoundException({ code: 'BOOK_NOT_FOUND', message: 'Book not found' });
     }
 
-    if (book.status !== BookStatus.draft && book.status !== BookStatus.rejected) {
-      throw new ForbiddenException({
-        code: 'BOOK_NOT_EDITABLE',
-        message: 'Only draft or rejected books can be updated',
-      });
-    }
+    this.assertBookEditable(book.status);
 
     this.validateCoverFile(file);
 
@@ -227,7 +304,7 @@ export class PublisherBooksService {
     return this.toPublisherBook(updated);
   }
 
-  async deleteDraftBook(userId: string, bookId: string) {
+  async deleteBook(userId: string, bookId: string) {
     const publisher = await this.publisherService.requirePublisher(userId);
     const book = await this.prisma.book.findFirst({
       where: { id: bookId, publisherId: publisher.id },
@@ -237,10 +314,10 @@ export class PublisherBooksService {
       throw new NotFoundException({ code: 'BOOK_NOT_FOUND', message: 'Book not found' });
     }
 
-    if (book.status !== BookStatus.draft) {
+    if (book.status !== BookStatus.draft && book.status !== BookStatus.rejected) {
       throw new BadRequestException({
         code: 'BOOK_NOT_DELETABLE',
-        message: 'Only draft books can be deleted',
+        message: 'Only draft or rejected books can be deleted',
       });
     }
 
@@ -292,6 +369,15 @@ export class PublisherBooksService {
     });
 
     return this.toPublisherBook(updated);
+  }
+
+  private assertBookEditable(status: BookStatus) {
+    if (status !== BookStatus.draft && status !== BookStatus.rejected) {
+      throw new ForbiddenException({
+        code: 'BOOK_NOT_EDITABLE',
+        message: 'Only draft or rejected books can be edited',
+      });
+    }
   }
 
   private validateFile(file: Express.Multer.File, format: BookFileFormat) {

@@ -74,6 +74,11 @@ export async function fetchPublisherBooks(): Promise<PaginatedResponse<Publisher
   return res.json() as Promise<PaginatedResponse<PublisherBook>>;
 }
 
+export async function fetchPublisherBook(bookId: string): Promise<PublisherBook> {
+  const res = await authFetch(`/publisher/books/${bookId}`);
+  return res.json() as Promise<PublisherBook>;
+}
+
 export async function createPublisherBook(input: {
   title: string;
   subtitle?: string;
@@ -88,6 +93,28 @@ export async function createPublisherBook(input: {
 }): Promise<PublisherBook> {
   const res = await authFetch('/publisher/books', {
     method: 'POST',
+    body: JSON.stringify(input),
+  });
+  return res.json() as Promise<PublisherBook>;
+}
+
+export async function updatePublisherBook(
+  bookId: string,
+  input: {
+    title?: string;
+    subtitle?: string;
+    description?: string;
+    authorName?: string;
+    isbn?: string;
+    format?: BookFormat;
+    previewPageCount?: number;
+    categoryIds?: string[];
+    languageIds?: string[];
+    prices?: { purchase: number; rental15: number; rental30: number };
+  },
+): Promise<PublisherBook> {
+  const res = await authFetch(`/publisher/books/${bookId}`, {
+    method: 'PATCH',
     body: JSON.stringify(input),
   });
   return res.json() as Promise<PublisherBook>;
@@ -122,8 +149,12 @@ export async function submitBookForReview(bookId: string): Promise<PublisherBook
   return res.json() as Promise<PublisherBook>;
 }
 
-export async function deletePublisherDraftBook(bookId: string): Promise<void> {
+export async function deletePublisherBook(bookId: string): Promise<void> {
   await authFetch(`/publisher/books/${bookId}`, { method: 'DELETE' });
+}
+
+export function canEditPublisherBook(book: Pick<PublisherBook, 'status'>) {
+  return book.status === 'draft' || book.status === 'rejected';
 }
 
 export async function fetchCategories(): Promise<Category[]> {

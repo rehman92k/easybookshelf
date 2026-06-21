@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   UploadedFile,
@@ -15,6 +16,7 @@ import { BookFileFormat, UserRoleType } from '@easybookshelf/database';
 import { memoryStorage } from 'multer';
 import { CurrentUser, RequestUser, Roles } from '../auth/decorators/auth.decorators';
 import { CreatePublisherBookDto } from './dto/create-publisher-book.dto';
+import { UpdatePublisherBookDto } from './dto/update-publisher-book.dto';
 import { PublisherBooksService } from './publisher-books.service';
 
 @ApiTags('publisher')
@@ -53,6 +55,16 @@ export class PublisherBooksController {
   @ApiOperation({ summary: 'Create draft book' })
   create(@CurrentUser() user: RequestUser, @Body() dto: CreatePublisherBookDto) {
     return this.publisherBooksService.createBook(user.userId, dto);
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update a draft or rejected book' })
+  update(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Body() dto: UpdatePublisherBookDto,
+  ) {
+    return this.publisherBooksService.updateBook(user.userId, id, dto);
   }
 
   @Post(':id/files')
@@ -116,8 +128,8 @@ export class PublisherBooksController {
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Delete a draft book' })
+  @ApiOperation({ summary: 'Delete a draft or rejected book' })
   delete(@CurrentUser() user: RequestUser, @Param('id') id: string) {
-    return this.publisherBooksService.deleteDraftBook(user.userId, id);
+    return this.publisherBooksService.deleteBook(user.userId, id);
   }
 }

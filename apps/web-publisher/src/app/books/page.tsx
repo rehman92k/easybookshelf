@@ -14,7 +14,11 @@ import {
 } from '@easybookshelf/ui';
 import { PublisherAuthGate } from '@/components/publisher-auth-gate';
 import { useAuth } from '@/components/auth-provider';
-import { fetchPublisherBooks, deletePublisherDraftBook } from '@/lib/publisher';
+import {
+  canEditPublisherBook,
+  deletePublisherBook,
+  fetchPublisherBooks,
+} from '@/lib/publisher';
 
 export default function PublisherBooksPage() {
   const { user, loading } = useAuth();
@@ -23,17 +27,17 @@ export default function PublisherBooksPage() {
   const [fetching, setFetching] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  async function handleDeleteDraft(book: PublisherBook) {
-    if (book.status !== 'draft') return;
-    if (!window.confirm(`Delete draft "${book.title}"? This cannot be undone.`)) return;
+  async function handleDeleteBook(book: PublisherBook) {
+    if (!canEditPublisherBook(book)) return;
+    if (!window.confirm(`Delete "${book.title}"? This cannot be undone.`)) return;
 
     setDeletingId(book.id);
     setError(null);
     try {
-      await deletePublisherDraftBook(book.id);
+      await deletePublisherBook(book.id);
       setBooks((current) => current.filter((b) => b.id !== book.id));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete draft');
+      setError(err instanceof Error ? err.message : 'Failed to delete book');
     } finally {
       setDeletingId(null);
     }
@@ -111,19 +115,23 @@ export default function PublisherBooksPage() {
                   <p className="mt-3 text-sm text-stone-600 dark:text-stone-400">
                     Files: {book.files.length > 0 ? book.files.map((f) => f.format).join(', ') : 'none'}
                   </p>
-                  {book.status === 'draft' && (
+                  {canEditPublisherBook(book) ? (
                     <div className="mt-4 flex flex-wrap gap-2">
-                      <Link href="/upload">
-                        <Button variant="secondary">Continue upload</Button>
+                      <Link href={`/books/${book.id}/edit`}>
+                        <Button variant="secondary">Edit</Button>
                       </Link>
                       <Button
                         variant="ghost"
                         disabled={deletingId === book.id}
-                        onClick={() => handleDeleteDraft(book)}
+                        onClick={() => handleDeleteBook(book)}
                       >
-                        {deletingId === book.id ? 'Deleting…' : 'Delete draft'}
+                        {deletingId === book.id ? 'Deleting…' : 'Delete'}
                       </Button>
                     </div>
+                  ) : (
+                    <p className="mt-3 text-xs text-stone-500">
+                      Books under review or published cannot be edited or deleted.
+                    </p>
                   )}
                   {book.rejectionReason && (
                     <Alert variant="error" className="mt-3">
