@@ -15,9 +15,11 @@ import {
 import { PublisherAuthGate } from '@/components/publisher-auth-gate';
 import { useAuth } from '@/components/auth-provider';
 import {
+  canDeletePublisherBook,
   canEditPublisherBook,
   deletePublisherBook,
   fetchPublisherBooks,
+  publisherBookLockMessage,
 } from '@/lib/publisher';
 
 export default function PublisherBooksPage() {
@@ -28,7 +30,7 @@ export default function PublisherBooksPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function handleDeleteBook(book: PublisherBook) {
-    if (!canEditPublisherBook(book)) return;
+    if (!canDeletePublisherBook(book)) return;
     if (!window.confirm(`Delete "${book.title}"? This cannot be undone.`)) return;
 
     setDeletingId(book.id);
@@ -116,22 +118,31 @@ export default function PublisherBooksPage() {
                     Files: {book.files.length > 0 ? book.files.map((f) => f.format).join(', ') : 'none'}
                   </p>
                   {canEditPublisherBook(book) ? (
-                    <div className="mt-4 flex flex-wrap gap-2">
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
                       <Link href={`/books/${book.id}/edit`}>
                         <Button variant="secondary">Edit</Button>
                       </Link>
-                      <Button
-                        variant="ghost"
-                        disabled={deletingId === book.id}
-                        onClick={() => handleDeleteBook(book)}
-                      >
-                        {deletingId === book.id ? 'Deleting…' : 'Delete'}
-                      </Button>
+                      {canDeletePublisherBook(book) && (
+                        <Button
+                          variant="ghost"
+                          disabled={deletingId === book.id}
+                          onClick={() => handleDeleteBook(book)}
+                        >
+                          {deletingId === book.id ? 'Deleting…' : 'Delete'}
+                        </Button>
+                      )}
+                      {book.status === 'approved' && (
+                        <p className="text-xs text-stone-500">
+                          Live in store. Edits will send the book back for admin review.
+                        </p>
+                      )}
                     </div>
                   ) : (
-                    <p className="mt-3 text-xs text-stone-500">
-                      Books under review or published cannot be edited or deleted.
-                    </p>
+                    publisherBookLockMessage(book.status) && (
+                      <p className="mt-3 text-xs text-stone-500">
+                        {publisherBookLockMessage(book.status)}
+                      </p>
+                    )
                   )}
                   {book.rejectionReason && (
                     <Alert variant="error" className="mt-3">

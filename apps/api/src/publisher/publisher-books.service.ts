@@ -168,6 +168,7 @@ export class PublisherBooksService {
           ...(dto.isbn !== undefined && { isbn: dto.isbn }),
           ...(dto.format !== undefined && { format: dto.format }),
           ...(dto.previewPageCount !== undefined && { previewPageCount: dto.previewPageCount }),
+          ...this.reReviewDataIfApproved(book.status),
         },
       });
 
@@ -262,7 +263,15 @@ export class PublisherBooksService {
     if (derivedFormat !== book.format) {
       await this.prisma.book.update({
         where: { id: book.id },
-        data: { format: derivedFormat },
+        data: {
+          format: derivedFormat,
+          ...this.reReviewDataIfApproved(book.status),
+        },
+      });
+    } else if (book.status === BookStatus.approved) {
+      await this.prisma.book.update({
+        where: { id: book.id },
+        data: this.reReviewDataIfApproved(book.status),
       });
     }
 
@@ -297,7 +306,10 @@ export class PublisherBooksService {
 
     const updated = await this.prisma.book.update({
       where: { id: book.id },
-      data: { coverImageUrl: stored.publicUrl },
+      data: {
+        coverImageUrl: stored.publicUrl,
+        ...this.reReviewDataIfApproved(book.status),
+      },
       include: bookInclude,
     });
 
@@ -372,12 +384,26 @@ export class PublisherBooksService {
   }
 
   private assertBookEditable(status: BookStatus) {
-    if (status !== BookStatus.draft && status !== BookStatus.rejected) {
+    if (
+      status !== BookStatus.draft &&
+      status !== BookStatus.rejected &&
+      status !== BookStatus.approved
+    ) {
       throw new ForbiddenException({
         code: 'BOOK_NOT_EDITABLE',
-        message: 'Only draft or rejected books can be edited',
+        message: 'This book cannot be edited while it is awaiting admin review',
       });
     }
+  }
+
+  private reReviewDataIfApproved(status: BookStatus) {
+    if (status === BookStatus.approved) {
+      return {
+        status: BookStatus.pending_review,
+        publishedAt: null,
+      };
+    }
+    return {};
   }
 
   private validateFile(file: Express.Multer.File, format: BookFileFormat) {

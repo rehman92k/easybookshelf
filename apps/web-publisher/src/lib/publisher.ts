@@ -154,7 +154,21 @@ export async function deletePublisherBook(bookId: string): Promise<void> {
 }
 
 export function canEditPublisherBook(book: Pick<PublisherBook, 'status'>) {
+  return book.status === 'draft' || book.status === 'rejected' || book.status === 'approved';
+}
+
+export function canDeletePublisherBook(book: Pick<PublisherBook, 'status'>) {
   return book.status === 'draft' || book.status === 'rejected';
+}
+
+export function publisherBookLockMessage(status: PublisherBook['status']): string | null {
+  if (status === 'pending_review') {
+    return 'Awaiting admin review — you cannot edit until it is approved or rejected.';
+  }
+  if (status === 'archived') {
+    return 'This book is archived and cannot be edited or deleted.';
+  }
+  return null;
 }
 
 export async function fetchCategories(): Promise<Category[]> {

@@ -71,7 +71,9 @@ export default function EditBookPage() {
         if (cancelled) return;
 
         if (!canEditPublisherBook(loadedBook)) {
-          setInitError('This book cannot be edited while it is under review or published.');
+          setInitError(
+            'This book is awaiting admin review and cannot be edited until it is approved or rejected.',
+          );
           return;
         }
 
@@ -205,6 +207,13 @@ export default function EditBookPage() {
       {book.rejectionReason && (
         <Alert variant="error" className="mb-4">
           Rejected: {book.rejectionReason}
+        </Alert>
+      )}
+
+      {book.status === 'approved' && (
+        <Alert variant="info" className="mb-4">
+          This book is live in the store. Saving changes will remove it from the store until an admin
+          approves the update.
         </Alert>
       )}
 
