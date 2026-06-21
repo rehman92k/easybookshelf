@@ -14,13 +14,30 @@ import {
 } from '@easybookshelf/ui';
 import { PublisherAuthGate } from '@/components/publisher-auth-gate';
 import { useAuth } from '@/components/auth-provider';
-import { fetchPublisherBooks } from '@/lib/publisher';
+import { fetchPublisherBooks, deletePublisherDraftBook } from '@/lib/publisher';
 
 export default function PublisherBooksPage() {
   const { user, loading } = useAuth();
   const [books, setBooks] = useState<PublisherBook[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [fetching, setFetching] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  async function handleDeleteDraft(book: PublisherBook) {
+    if (book.status !== 'draft') return;
+    if (!window.confirm(`Delete draft "${book.title}"? This cannot be undone.`)) return;
+
+    setDeletingId(book.id);
+    setError(null);
+    try {
+      await deletePublisherDraftBook(book.id);
+      setBooks((current) => current.filter((b) => b.id !== book.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete draft');
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   useEffect(() => {
     if (loading || !user) return;
@@ -94,6 +111,20 @@ export default function PublisherBooksPage() {
                   <p className="mt-3 text-sm text-stone-600 dark:text-stone-400">
                     Files: {book.files.length > 0 ? book.files.map((f) => f.format).join(', ') : 'none'}
                   </p>
+                  {book.status === 'draft' && (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <Link href="/upload">
+                        <Button variant="secondary">Continue upload</Button>
+                      </Link>
+                      <Button
+                        variant="ghost"
+                        disabled={deletingId === book.id}
+                        onClick={() => handleDeleteDraft(book)}
+                      >
+                        {deletingId === book.id ? 'Deleting…' : 'Delete draft'}
+                      </Button>
+                    </div>
+                  )}
                   {book.rejectionReason && (
                     <Alert variant="error" className="mt-3">
                       Rejected: {book.rejectionReason}

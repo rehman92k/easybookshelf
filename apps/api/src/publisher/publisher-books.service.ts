@@ -227,6 +227,27 @@ export class PublisherBooksService {
     return this.toPublisherBook(updated);
   }
 
+  async deleteDraftBook(userId: string, bookId: string) {
+    const publisher = await this.publisherService.requirePublisher(userId);
+    const book = await this.prisma.book.findFirst({
+      where: { id: bookId, publisherId: publisher.id },
+    });
+
+    if (!book) {
+      throw new NotFoundException({ code: 'BOOK_NOT_FOUND', message: 'Book not found' });
+    }
+
+    if (book.status !== BookStatus.draft) {
+      throw new BadRequestException({
+        code: 'BOOK_NOT_DELETABLE',
+        message: 'Only draft books can be deleted',
+      });
+    }
+
+    await this.prisma.book.delete({ where: { id: book.id } });
+    return { success: true };
+  }
+
   async submitForReview(userId: string, bookId: string) {
     const publisher = await this.publisherService.requirePublisher(userId);
     const book = await this.prisma.book.findFirst({

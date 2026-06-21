@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
@@ -112,5 +113,11 @@ export class PublisherBooksController {
   @ApiOperation({ summary: 'Submit book for admin review' })
   submit(@CurrentUser() user: RequestUser, @Param('id') id: string) {
     return this.publisherBooksService.submitForReview(user.userId, id);
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Delete a draft book' })
+  delete(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.publisherBooksService.deleteDraftBook(user.userId, id);
   }
 }

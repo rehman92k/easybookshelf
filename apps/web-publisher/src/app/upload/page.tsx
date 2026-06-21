@@ -107,45 +107,55 @@ export default function UploadPage() {
     setError(null);
     setSuccess(null);
 
+    let activeBookId = bookId;
+
     try {
       if (!categoryId || !languageId) {
         throw new Error('Select a category and language before uploading.');
       }
 
-      const book = await createPublisherBook({
-        title,
-        subtitle: subtitle || undefined,
-        description: description || undefined,
-        authorName,
-        isbn: isbn || undefined,
-        format,
-        categoryIds: [categoryId],
-        languageIds: [languageId],
-        prices: {
-          purchase: Number(purchase),
-          rental15: Number(rental15),
-          rental30: Number(rental30),
-        },
-      });
-
-      setBookId(book.id);
+      if (!activeBookId) {
+        const book = await createPublisherBook({
+          title,
+          subtitle: subtitle || undefined,
+          description: description || undefined,
+          authorName,
+          isbn: isbn || undefined,
+          format,
+          categoryIds: [categoryId],
+          languageIds: [languageId],
+          prices: {
+            purchase: Number(purchase),
+            rental15: Number(rental15),
+            rental30: Number(rental30),
+          },
+        });
+        activeBookId = book.id;
+        setBookId(book.id);
+      }
 
       if (coverFile) {
-        await uploadBookCover(book.id, coverFile);
+        await uploadBookCover(activeBookId, coverFile);
       }
 
       if (format === 'epub' && epubFile) {
-        await uploadBookFile(book.id, epubFile, 'epub');
+        await uploadBookFile(activeBookId, epubFile, 'epub');
       }
       if (format === 'pdf' && pdfFile) {
-        await uploadBookFile(book.id, pdfFile, 'pdf');
+        await uploadBookFile(activeBookId, pdfFile, 'pdf');
       }
 
-      const submitted = await submitBookForReview(book.id);
+      const submitted = await submitBookForReview(activeBookId);
       setSuccess(`"${submitted.title}" submitted for review.`);
       router.push('/books');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed');
+      setError(
+        err instanceof Error
+          ? activeBookId
+            ? `${err.message} Your draft was saved — fix the issue and submit again to continue.`
+            : err.message
+          : 'Upload failed',
+      );
     } finally {
       setSubmitting(false);
     }

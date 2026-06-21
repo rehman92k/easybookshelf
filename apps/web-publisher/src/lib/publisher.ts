@@ -122,6 +122,10 @@ export async function submitBookForReview(bookId: string): Promise<PublisherBook
   return res.json() as Promise<PublisherBook>;
 }
 
+export async function deletePublisherDraftBook(bookId: string): Promise<void> {
+  await authFetch(`/publisher/books/${bookId}`, { method: 'DELETE' });
+}
+
 export async function fetchCategories(): Promise<Category[]> {
   const res = await fetch(`${API_URL}/catalog/categories`);
   if (!res.ok) throw new Error('Failed to load categories');
