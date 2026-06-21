@@ -2,7 +2,7 @@ NODE_ENV: production
 FIREBASE_PROJECT_ID: easybookshelf
 FIREBASE_CLIENT_EMAIL: firebase-adminsdk-fbsvc@easybookshelf.iam.gserviceaccount.com
 STORAGE_DRIVER: firebase
-FIREBASE_STORAGE_BUCKET: easybookshelf.appspot.com
+FIREBASE_STORAGE_BUCKET: easybookshelf.firebasestorage.app
 PHONE_OTP_DEV_MODE: "true"
 PHONE_OTP_DEV_CODE: "123456"
 PHONE_OTP_EXPIRES_MINUTES: "10"
