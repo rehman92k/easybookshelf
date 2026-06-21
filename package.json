@@ -26,6 +26,7 @@
     "db:migrate": "pnpm --filter @easybookshelf/database migrate:dev",
     "db:migrate:deploy": "pnpm --filter @easybookshelf/database migrate:deploy",
     "db:seed": "pnpm --filter @easybookshelf/database seed",
+    "db:seed:catalog": "pnpm --filter @easybookshelf/database seed:catalog",
     "dev:delete-user": "pnpm --filter @easybookshelf/database delete-dev-user",
     "dev:remove-role": "pnpm --filter @easybookshelf/database remove-user-role",
     "dev:create-super-admin": "pnpm --filter @easybookshelf/api create-super-admin",

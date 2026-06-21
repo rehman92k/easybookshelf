@@ -14,6 +14,7 @@ export interface StoredObject {
   key: string;
   checksumSha256: string;
   sizeBytes: number;
+  publicUrl?: string;
 }
 
 export interface StoredObjectContent {
@@ -78,7 +79,7 @@ export class StorageService {
       await bucket.file(key).save(buffer, {
         contentType,
         resumable: false,
-        metadata: { cacheControl: 'private, max-age=3600' },
+        metadata: { cacheControl: 'public, max-age=86400' },
       });
     } else if (this.driver === 's3') {
       await this.s3Client!.send(
@@ -99,6 +100,35 @@ export class StorageService {
       key,
       checksumSha256,
       sizeBytes: buffer.length,
+    };
+  }
+
+  async putPublicObject(key: string, buffer: Buffer, contentType: string): Promise<StoredObject> {
+    const stored = await this.putObject(key, buffer, contentType);
+
+    if (this.driver === 'firebase') {
+      const bucket = this.getFirebaseBucket();
+      await bucket.file(key).makePublic();
+      return {
+        ...stored,
+        publicUrl: `https://storage.googleapis.com/${bucket.name}/${key}`,
+      };
+    }
+
+    if (this.driver === 's3') {
+      const publicUrl = this.config.get<string>('AWS_S3_PUBLIC_BASE_URL');
+      return {
+        ...stored,
+        publicUrl: publicUrl ? `${publicUrl.replace(/\/$/, '')}/${key}` : undefined,
+      };
+    }
+
+    const publicBase =
+      this.config.get<string>('PUBLIC_API_URL') ??
+      `http://localhost:${this.config.get<string>('PORT') ?? '4000'}`;
+    return {
+      ...stored,
+      publicUrl: `${publicBase.replace(/\/$/, '')}/api/v1/media/${key}`,
     };
   }
 

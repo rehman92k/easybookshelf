@@ -107,6 +107,16 @@ export async function uploadBookFile(
   });
 }
 
+export async function uploadBookCover(bookId: string, file: File): Promise<PublisherBook> {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await authFetch(`/publisher/books/${bookId}/cover`, {
+    method: 'POST',
+    body: form,
+  });
+  return res.json() as Promise<PublisherBook>;
+}
+
 export async function submitBookForReview(bookId: string): Promise<PublisherBook> {
   const res = await authFetch(`/publisher/books/${bookId}/submit`, { method: 'POST' });
   return res.json() as Promise<PublisherBook>;

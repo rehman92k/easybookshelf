@@ -187,6 +187,46 @@ export class PublisherBooksService {
     return this.toBookFile(bookFile);
   }
 
+  async uploadCover(userId: string, bookId: string, file: Express.Multer.File) {
+    const publisher = await this.publisherService.requirePublisher(userId);
+    const book = await this.prisma.book.findFirst({
+      where: { id: bookId, publisherId: publisher.id },
+    });
+
+    if (!book) {
+      throw new NotFoundException({ code: 'BOOK_NOT_FOUND', message: 'Book not found' });
+    }
+
+    if (book.status !== BookStatus.draft && book.status !== BookStatus.rejected) {
+      throw new ForbiddenException({
+        code: 'BOOK_NOT_EDITABLE',
+        message: 'Only draft or rejected books can be updated',
+      });
+    }
+
+    this.validateCoverFile(file);
+
+    const ext = extname(file.originalname.toLowerCase()) || '.jpg';
+    const key = `covers/${publisher.id}/${book.id}/${randomUUID()}${ext}`;
+    const contentType = file.mimetype || this.guessImageContentType(ext);
+
+    const stored = await this.storage.putPublicObject(key, file.buffer, contentType);
+    if (!stored.publicUrl) {
+      throw new BadRequestException({
+        code: 'COVER_URL_UNAVAILABLE',
+        message: 'Cover was stored but a public URL could not be generated',
+      });
+    }
+
+    const updated = await this.prisma.book.update({
+      where: { id: book.id },
+      data: { coverImageUrl: stored.publicUrl },
+      include: bookInclude,
+    });
+
+    return this.toPublisherBook(updated);
+  }
+
   async submitForReview(userId: string, bookId: string) {
     const publisher = await this.publisherService.requirePublisher(userId);
     const book = await this.prisma.book.findFirst({
@@ -260,6 +300,35 @@ export class PublisherBooksService {
         message: 'PDF uploads must use a .pdf file',
       });
     }
+  }
+
+  private validateCoverFile(file: Express.Multer.File) {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException({ code: 'FILE_REQUIRED', message: 'Cover image is required' });
+    }
+
+    const maxBytes = 5 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      throw new BadRequestException({
+        code: 'FILE_TOO_LARGE',
+        message: 'Cover image must be 5 MB or smaller',
+      });
+    }
+
+    const ext = extname(file.originalname.toLowerCase());
+    const allowed = new Set(['.jpg', '.jpeg', '.png', '.webp']);
+    if (!allowed.has(ext)) {
+      throw new BadRequestException({
+        code: 'INVALID_FILE_TYPE',
+        message: 'Cover must be JPG, PNG, or WebP',
+      });
+    }
+  }
+
+  private guessImageContentType(ext: string) {
+    if (ext === '.png') return 'image/png';
+    if (ext === '.webp') return 'image/webp';
+    return 'image/jpeg';
   }
 
   private deriveBookFormat(

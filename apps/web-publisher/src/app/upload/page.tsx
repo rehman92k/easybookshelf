@@ -15,6 +15,7 @@ import {
   fetchPublisherProfile,
   submitBookForReview,
   uploadBookFile,
+  uploadBookCover,
 } from '@/lib/publisher';
 
 export default function UploadPage() {
@@ -43,6 +44,7 @@ export default function UploadPage() {
   const [rental30, setRental30] = useState('79');
   const [epubFile, setEpubFile] = useState<File | null>(null);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
 
   useEffect(() => {
     if (loading) return;
@@ -106,6 +108,10 @@ export default function UploadPage() {
     setSuccess(null);
 
     try {
+      if (!categoryId || !languageId) {
+        throw new Error('Select a category and language before uploading.');
+      }
+
       const book = await createPublisherBook({
         title,
         subtitle: subtitle || undefined,
@@ -123,6 +129,10 @@ export default function UploadPage() {
       });
 
       setBookId(book.id);
+
+      if (coverFile) {
+        await uploadBookCover(book.id, coverFile);
+      }
 
       if (format === 'epub' && epubFile) {
         await uploadBookFile(book.id, epubFile, 'epub');
@@ -269,15 +279,21 @@ export default function UploadPage() {
             </label>
             <select
               id="category"
+              required
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-stone-300 px-4 py-2 text-sm dark:border-stone-700 dark:bg-stone-900"
+              disabled={categories.length === 0}
+              className="mt-1 w-full rounded-lg border border-stone-300 px-4 py-2 text-sm disabled:cursor-not-allowed disabled:bg-stone-100 dark:border-stone-700 dark:bg-stone-900 dark:disabled:bg-stone-800"
             >
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
+              {categories.length === 0 ? (
+                <option value="">No categories available</option>
+              ) : (
+                categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))
+              )}
             </select>
           </div>
           <div>
@@ -286,17 +302,45 @@ export default function UploadPage() {
             </label>
             <select
               id="language"
+              required
               value={languageId}
               onChange={(e) => setLanguageId(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-stone-300 px-4 py-2 text-sm dark:border-stone-700 dark:bg-stone-900"
+              disabled={languages.length === 0}
+              className="mt-1 w-full rounded-lg border border-stone-300 px-4 py-2 text-sm disabled:cursor-not-allowed disabled:bg-stone-100 dark:border-stone-700 dark:bg-stone-900 dark:disabled:bg-stone-800"
             >
-              {languages.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name}
-                </option>
-              ))}
+              {languages.length === 0 ? (
+                <option value="">No languages available</option>
+              ) : (
+                languages.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name}
+                  </option>
+                ))
+              )}
             </select>
           </div>
+        </div>
+
+        {(categories.length === 0 || languages.length === 0) && (
+          <Alert variant="info">
+            Categories and languages are not loaded yet. Ask an admin to run{' '}
+            <code className="text-xs">pnpm db:seed:catalog</code> on the production database, then
+            refresh this page.
+          </Alert>
+        )}
+
+        <div>
+          <label htmlFor="cover-file" className="text-sm font-medium">
+            Cover image <span className="font-normal text-stone-500">(optional)</span>
+          </label>
+          <input
+            id="cover-file"
+            type="file"
+            accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+            onChange={(e) => setCoverFile(e.target.files?.[0] ?? null)}
+            className="mt-1 block w-full text-sm"
+          />
+          <p className="mt-1 text-xs text-stone-500">JPG, PNG, or WebP. Max 5 MB.</p>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-3">
@@ -376,7 +420,7 @@ export default function UploadPage() {
           </div>
         )}
 
-        <Button type="submit" disabled={submitting}>
+        <Button type="submit" disabled={submitting || categories.length === 0 || languages.length === 0}>
           {submitting ? 'Uploading...' : 'Upload and submit for review'}
         </Button>
       </form>

@@ -82,6 +82,32 @@ export class PublisherBooksController {
     return this.publisherBooksService.uploadFile(user.userId, id, file, format);
   }
 
+  @Post(':id/cover')
+  @ApiOperation({ summary: 'Upload cover image for a draft book' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: { type: 'string', format: 'binary' },
+      },
+    },
+  })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  uploadCover(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.publisherBooksService.uploadCover(user.userId, id, file);
+  }
+
   @Post(':id/submit')
   @ApiOperation({ summary: 'Submit book for admin review' })
   submit(@CurrentUser() user: RequestUser, @Param('id') id: string) {

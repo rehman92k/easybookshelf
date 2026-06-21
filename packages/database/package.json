@@ -18,6 +18,7 @@
     "migrate:dev": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
     "seed": "tsx prisma/seed.ts",
+    "seed:catalog": "tsx prisma/seed-catalog.ts",
     "delete-dev-user": "tsx prisma/delete-dev-user.ts",
     "remove-user-role": "tsx prisma/remove-user-role.ts",
     "studio": "prisma studio",

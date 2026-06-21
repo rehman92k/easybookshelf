@@ -74,7 +74,13 @@ cloud-sql-proxy PROJECT_ID:asia-south1:INSTANCE_NAME &
 DATABASE_URL="postgresql://..." pnpm db:migrate:deploy
 ```
 
-5. Bootstrap super admin (production email + phone):
+5. Seed **catalog data** (categories, languages, platform defaults — required for publisher upload):
+
+```bash
+DATABASE_URL="postgresql://..." pnpm db:seed:catalog
+```
+
+6. Bootstrap super admin (production email + phone):
 
 ```bash
 pnpm dev:create-super-admin -- --email=admin@yourdomain.com --password=... --phone=...
