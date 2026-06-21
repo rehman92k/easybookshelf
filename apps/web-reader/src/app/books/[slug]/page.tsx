@@ -8,6 +8,8 @@ import { SiteHeader } from '@/components/site-header';
 import { fetchBook } from '@/lib/catalog';
 import { fetchReadingAccessBySlugServer } from '@/lib/reading-server';
 
+export const dynamic = 'force-dynamic';
+
 interface BookDetailPageProps {
   params: Promise<{ slug: string }>;
 }

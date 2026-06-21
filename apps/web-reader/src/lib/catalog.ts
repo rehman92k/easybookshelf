@@ -8,6 +8,8 @@ import type {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
 
+const catalogFetchOptions: RequestInit = { cache: 'no-store' };
+
 export interface ListBooksParams {
   page?: number;
   pageSize?: number;
@@ -28,9 +30,7 @@ export async function fetchBooks(
   if (params.language) query.set('language', params.language);
   if (params.featured) query.set('featured', 'true');
 
-  const res = await fetch(`${API_URL}/books?${query.toString()}`, {
-    next: { revalidate: 60 },
-  });
+  const res = await fetch(`${API_URL}/books?${query.toString()}`, catalogFetchOptions);
 
   if (!res.ok) {
     throw new Error('Failed to load books');
@@ -49,9 +49,7 @@ export async function searchBooks(
   if (params.category) query.set('category', params.category);
   if (params.language) query.set('language', params.language);
 
-  const res = await fetch(`${API_URL}/search/books?${query.toString()}`, {
-    next: { revalidate: 60 },
-  });
+  const res = await fetch(`${API_URL}/search/books?${query.toString()}`, catalogFetchOptions);
 
   if (!res.ok) {
     throw new Error('Failed to search books');
@@ -61,9 +59,7 @@ export async function searchBooks(
 }
 
 export async function fetchBook(slug: string): Promise<BookDetail> {
-  const res = await fetch(`${API_URL}/books/${slug}`, {
-    next: { revalidate: 60 },
-  });
+  const res = await fetch(`${API_URL}/books/${slug}`, catalogFetchOptions);
 
   if (!res.ok) {
     throw new Error('Book not found');

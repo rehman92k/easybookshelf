@@ -4,6 +4,8 @@ import { AdBanner } from '@/components/ad-banner';
 import { BookCard } from '@/components/book-card';
 import { fetchBooks, fetchCategories, fetchLanguages } from '@/lib/catalog';
 
+export const dynamic = 'force-dynamic';
+
 interface BooksPageProps {
   searchParams: Promise<{
     page?: string;

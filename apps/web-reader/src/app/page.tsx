@@ -5,6 +5,8 @@ import { SiteLayout } from '@/components/site-layout';
 import { BookCard } from '@/components/book-card';
 import { fetchBooks } from '@/lib/catalog';
 
+export const dynamic = 'force-dynamic';
+
 export default async function HomePage() {
   const featured = await fetchBooks({ featured: true, pageSize: 4 }).catch(() => null);
 

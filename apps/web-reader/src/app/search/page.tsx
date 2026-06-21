@@ -4,6 +4,8 @@ import { SiteHeader } from '@/components/site-header';
 import { BookCard } from '@/components/book-card';
 import { fetchCategories, fetchLanguages, searchBooks } from '@/lib/catalog';
 
+export const dynamic = 'force-dynamic';
+
 interface SearchPageProps {
   searchParams: Promise<{
     q?: string;
