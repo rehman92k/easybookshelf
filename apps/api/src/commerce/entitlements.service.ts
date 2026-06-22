@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import {
-  BookStatus,
   EntitlementStatus,
   EntitlementType,
   OrderItemType,
@@ -90,7 +89,6 @@ export class EntitlementsService {
         userId,
         status: EntitlementStatus.active,
         OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
-        book: { status: BookStatus.approved },
       },
       include: {
         book: {
@@ -100,6 +98,15 @@ export class EntitlementsService {
             slug: true,
             authorName: true,
             coverImageUrl: true,
+            status: true,
+          },
+        },
+        orderItem: {
+          select: {
+            unitPrice: true,
+            listUnitPrice: true,
+            type: true,
+            order: { select: { currency: true } },
           },
         },
       },
@@ -131,7 +138,20 @@ export class EntitlementsService {
           startsAt: entitlement.startsAt.toISOString(),
           expiresAt: entitlement.expiresAt?.toISOString() ?? null,
         },
-        book: entitlement.book,
+        book: {
+          id: entitlement.book.id,
+          title: entitlement.book.title,
+          slug: entitlement.book.slug,
+          authorName: entitlement.book.authorName,
+          coverImageUrl: entitlement.book.coverImageUrl,
+          status: entitlement.book.status,
+        },
+        underReview: entitlement.book.status === 'pending_review',
+        pricePaid: {
+          amount: Number(entitlement.orderItem.unitPrice),
+          listAmount: Number(entitlement.orderItem.listUnitPrice),
+          currency: entitlement.orderItem.order.currency,
+        },
         progressPercent,
         lastReadAt: progress?.lastReadAt.toISOString() ?? null,
       };

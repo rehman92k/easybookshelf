@@ -16,6 +16,15 @@ import { UpsertReadingProgressDto } from './dto/upsert-reading-progress.dto';
 
 export type ReadingMode = 'none' | 'preview' | 'full';
 
+const bookFilesInclude = {
+  files: {
+    where: { processingStatus: ProcessingStatus.ready },
+    orderBy: { createdAt: 'desc' as const },
+  },
+} satisfies Prisma.BookInclude;
+
+type BookForReading = Prisma.BookGetPayload<{ include: typeof bookFilesInclude }>;
+
 @Injectable()
 export class ReadingService {
   constructor(
@@ -25,38 +34,24 @@ export class ReadingService {
 
   async getAccessBySlug(slug: string, userId?: string | null) {
     const book = await this.prisma.book.findFirst({
-      where: { slug, status: BookStatus.approved },
-      include: {
-        files: {
-          where: { processingStatus: ProcessingStatus.ready },
-          orderBy: { createdAt: 'desc' },
-        },
-      },
+      where: { slug },
+      include: bookFilesInclude,
     });
 
-    if (!book) {
-      throw new NotFoundException({ code: 'BOOK_NOT_FOUND', message: 'Book not found' });
-    }
+    await this.assertReaderCanAccessBook(book, userId);
 
-    return this.buildAccessResponse(book, userId);
+    return this.buildAccessResponse(book!, userId);
   }
 
   async getAccessById(bookId: string, userId?: string | null) {
     const book = await this.prisma.book.findFirst({
-      where: { id: bookId, status: BookStatus.approved },
-      include: {
-        files: {
-          where: { processingStatus: ProcessingStatus.ready },
-          orderBy: { createdAt: 'desc' },
-        },
-      },
+      where: { id: bookId },
+      include: bookFilesInclude,
     });
 
-    if (!book) {
-      throw new NotFoundException({ code: 'BOOK_NOT_FOUND', message: 'Book not found' });
-    }
+    await this.assertReaderCanAccessBook(book, userId);
 
-    return this.buildAccessResponse(book, userId);
+    return this.buildAccessResponse(book!, userId);
   }
 
   async getBookFile(
@@ -133,10 +128,7 @@ export class ReadingService {
     const safePageSize = Math.min(Math.max(pageSize, 1), 50);
     const skip = (safePage - 1) * safePageSize;
 
-    const where = {
-      userId,
-      book: { status: BookStatus.approved },
-    };
+    const where = { userId };
 
     const [rows, total] = await Promise.all([
       this.prisma.readingProgress.findMany({
@@ -198,12 +190,34 @@ export class ReadingService {
     return this.toProgress(progress);
   }
 
+  private async assertReaderCanAccessBook(
+    book: BookForReading | null,
+    userId?: string | null,
+  ) {
+    if (!book) {
+      throw new NotFoundException({ code: 'BOOK_NOT_FOUND', message: 'Book not found' });
+    }
+
+    if (book.status === BookStatus.approved) {
+      return;
+    }
+
+    if (book.status === BookStatus.draft) {
+      throw new NotFoundException({ code: 'BOOK_NOT_FOUND', message: 'Book not found' });
+    }
+
+    if (!userId || !(await this.hasActiveEntitlement(userId, book.id))) {
+      throw new NotFoundException({ code: 'BOOK_NOT_FOUND', message: 'Book not found' });
+    }
+  }
+
   private async buildAccessResponse(
     book: {
       id: string;
       slug: string;
       title: string;
       format: string;
+      status: BookStatus;
       previewPageCount: number;
       previewChapterCount: number;
       files: { format: BookFileFormat }[];
@@ -232,6 +246,8 @@ export class ReadingService {
       previewPageCount,
       previewChapterCount: book.previewChapterCount,
       hasEntitlement,
+      underReview: book.status === BookStatus.pending_review,
+      grandfatheredAccess: book.status !== BookStatus.approved && hasEntitlement,
     };
   }
 

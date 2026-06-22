@@ -16,6 +16,7 @@ import { AdBanner } from '@/components/ad-banner';
 import { SiteLayout } from '@/components/site-layout';
 import { useAuth } from '@/components/auth-provider';
 import { fetchLibrary } from '@/lib/commerce';
+import { formatPrice } from '@/lib/catalog';
 
 export default function LibraryPage() {
   const { user, loading: authLoading } = useAuth();
@@ -95,9 +96,16 @@ export default function LibraryPage() {
                 <div className="min-w-0 flex-1">
                   <p className="text-xs uppercase tracking-wide text-amber-700 dark:text-amber-400">
                     {item.entitlement.type === 'purchase' ? 'Owned' : 'Rental'}
+                    {' · '}
+                    {formatPrice(item.pricePaid.amount, item.pricePaid.currency)}
                   </p>
                   <h2 className="truncate font-serif font-semibold">{item.book.title}</h2>
                   <p className="truncate text-sm text-stone-500">{item.book.authorName}</p>
+                  {item.underReview && (
+                    <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                      Publisher update pending — you keep full access at your purchase price.
+                    </p>
+                  )}
                   {item.entitlement.expiresAt && (
                     <p className="mt-1 text-xs text-stone-400">
                       Expires {new Date(item.entitlement.expiresAt).toLocaleDateString()}

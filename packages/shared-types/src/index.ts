@@ -150,6 +150,15 @@ export interface LibraryItem {
     slug: string;
     authorName: string;
     coverImageUrl: string | null;
+    status: BookStatus;
+  };
+  /** True when the publisher edited a live book and admin re-approval is pending. */
+  underReview: boolean;
+  /** Price locked at purchase/rental time — not affected by later publisher price changes. */
+  pricePaid: {
+    amount: number;
+    listAmount: number;
+    currency: string;
   };
   progressPercent: number | null;
   lastReadAt: string | null;
@@ -400,6 +409,8 @@ export interface ReadingAccess {
   previewPageCount: number;
   previewChapterCount: number;
   hasEntitlement: boolean;
+  underReview?: boolean;
+  grandfatheredAccess?: boolean;
 }
 
 export interface ReadingProgressRecord {
