@@ -27,6 +27,32 @@ function parseRateInput(value: string) {
   return Math.round(Number(value) * 10) / 1000;
 }
 
+const DEFAULT_RENTAL_PERIOD_DAYS: [number, number] = [15, 30];
+
+function normalizeRentalPeriodDays(value: unknown): [number, number] {
+  if (Array.isArray(value) && value.length === 2) {
+    const first = Number(value[0]);
+    const second = Number(value[1]);
+    if (
+      Number.isInteger(first) &&
+      Number.isInteger(second) &&
+      first > 0 &&
+      second > 0 &&
+      first < second
+    ) {
+      return [first, second];
+    }
+  }
+  return DEFAULT_RENTAL_PERIOD_DAYS;
+}
+
+function settingsFromApi(data: PlatformCommerceSettings): PlatformCommerceSettings {
+  return {
+    ...data,
+    rentalPeriodDays: normalizeRentalPeriodDays(data.rentalPeriodDays),
+  };
+}
+
 export default function AdminCommissionPage() {
   const { user, loading: authLoading } = useAuth();
   const [settings, setSettings] = useState<PlatformCommerceSettings | null>(null);
@@ -54,14 +80,15 @@ export default function AdminCommissionPage() {
       setLoading(true);
       setError(null);
       try {
-        const data = await fetchCommerceSettings();
+        const data = settingsFromApi(await fetchCommerceSettings());
+        const rentalPeriodDays = data.rentalPeriodDays;
         setSettings(data);
         setDraft({
           purchaseCommissionPercent: rateInput(data.purchaseCommissionRate),
           rentalCommissionPercent: rateInput(data.rentalCommissionRate),
           subscriberDiscountPercent: rateInput(data.subscriberPurchaseDiscountRate),
-          rentalPeriodShort: String(data.rentalPeriodDays[0]),
-          rentalPeriodLong: String(data.rentalPeriodDays[1]),
+          rentalPeriodShort: String(rentalPeriodDays[0]),
+          rentalPeriodLong: String(rentalPeriodDays[1]),
         });
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Could not load settings');
@@ -89,7 +116,7 @@ export default function AdminCommissionPage() {
         subscriberPurchaseDiscountRate: parseRateInput(draft.subscriberDiscountPercent),
         rentalPeriodDays: [shortDays, longDays],
       });
-      setSettings(updated);
+      setSettings(settingsFromApi(updated));
       setMessage('Commerce settings saved');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed');
