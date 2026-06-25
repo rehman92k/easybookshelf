@@ -53,9 +53,14 @@ function settingsFromApi(data: PlatformCommerceSettings): PlatformCommerceSettin
   };
 }
 
+function apiSupportsRentalPeriods(data: PlatformCommerceSettings): boolean {
+  return Array.isArray(data.rentalPeriodDays) && data.rentalPeriodDays.length === 2;
+}
+
 export default function AdminCommissionPage() {
   const { user, loading: authLoading } = useAuth();
   const [settings, setSettings] = useState<PlatformCommerceSettings | null>(null);
+  const [rentalPeriodsEditable, setRentalPeriodsEditable] = useState(false);
   const [draft, setDraft] = useState({
     purchaseCommissionPercent: '15',
     rentalCommissionPercent: '10',
@@ -80,8 +85,10 @@ export default function AdminCommissionPage() {
       setLoading(true);
       setError(null);
       try {
-        const data = settingsFromApi(await fetchCommerceSettings());
+        const raw = await fetchCommerceSettings();
+        const data = settingsFromApi(raw);
         const rentalPeriodDays = data.rentalPeriodDays;
+        setRentalPeriodsEditable(apiSupportsRentalPeriods(raw));
         setSettings(data);
         setDraft({
           purchaseCommissionPercent: rateInput(data.purchaseCommissionRate),
@@ -106,7 +113,10 @@ export default function AdminCommissionPage() {
     try {
       const shortDays = Number(draft.rentalPeriodShort);
       const longDays = Number(draft.rentalPeriodLong);
-      if (!Number.isInteger(shortDays) || !Number.isInteger(longDays) || shortDays >= longDays) {
+      if (
+        rentalPeriodsEditable &&
+        (!Number.isInteger(shortDays) || !Number.isInteger(longDays) || shortDays >= longDays)
+      ) {
         throw new Error('Rental periods must be two different day values (shorter first).');
       }
 
@@ -114,10 +124,15 @@ export default function AdminCommissionPage() {
         purchaseCommissionRate: parseRateInput(draft.purchaseCommissionPercent),
         rentalCommissionRate: parseRateInput(draft.rentalCommissionPercent),
         subscriberPurchaseDiscountRate: parseRateInput(draft.subscriberDiscountPercent),
-        rentalPeriodDays: [shortDays, longDays],
+        ...(rentalPeriodsEditable ? { rentalPeriodDays: [shortDays, longDays] as [number, number] } : {}),
       });
+      setRentalPeriodsEditable(apiSupportsRentalPeriods(updated));
       setSettings(settingsFromApi(updated));
-      setMessage('Commerce settings saved');
+      setMessage(
+        rentalPeriodsEditable
+          ? 'Commerce settings saved'
+          : 'Commission rates saved. Redeploy the API to enable saving rental period days.',
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed');
     } finally {
@@ -142,6 +157,12 @@ export default function AdminCommissionPage() {
         <form onSubmit={handleSave} className="mx-auto max-w-2xl space-y-6">
           {error && <Alert variant="error">{error}</Alert>}
           {message && <Alert variant="success">{message}</Alert>}
+          {!loading && !rentalPeriodsEditable && (
+            <Alert variant="info">
+              Rental period days are shown as defaults (15 / 30). Deploy the latest API to save
+              custom rental lengths.
+            </Alert>
+          )}
 
           <Card>
             <h2 className="font-serif text-lg font-semibold">Platform commission</h2>
@@ -197,6 +218,7 @@ export default function AdminCommissionPage() {
                   max="365"
                   step="1"
                   value={draft.rentalPeriodShort}
+                  disabled={!rentalPeriodsEditable}
                   onChange={(e) =>
                     setDraft((prev) => ({ ...prev, rentalPeriodShort: e.target.value }))
                   }
@@ -211,6 +233,7 @@ export default function AdminCommissionPage() {
                   max="365"
                   step="1"
                   value={draft.rentalPeriodLong}
+                  disabled={!rentalPeriodsEditable}
                   onChange={(e) =>
                     setDraft((prev) => ({ ...prev, rentalPeriodLong: e.target.value }))
                   }
