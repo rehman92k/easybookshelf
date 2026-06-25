@@ -1,6 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { Prisma } from '@easybookshelf/database';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  assertValidRentalPeriodDays,
+  DEFAULT_RENTAL_PERIOD_DAYS,
+  isRentalOrderType,
+  parseRentalPeriodDays,
+} from './rental-pricing';
 
 export interface CommercePlatformSettings {
   purchaseCommissionRate: number;
@@ -11,6 +17,12 @@ export interface CommercePlatformSettings {
   maxBookPrice: number;
   minRentalPrice: number;
   maxRentalPrice: number;
+  rentalPeriodDays: [number, number];
+}
+
+export interface PublicCommerceConfig {
+  rentalPeriodDays: [number, number];
+  currency: string;
 }
 
 const DEFAULTS: CommercePlatformSettings = {
@@ -22,6 +34,7 @@ const DEFAULTS: CommercePlatformSettings = {
   maxBookPrice: 9999,
   minRentalPrice: 9,
   maxRentalPrice: 999,
+  rentalPeriodDays: DEFAULT_RENTAL_PERIOD_DAYS,
 };
 
 @Injectable()
@@ -42,6 +55,7 @@ export class PlatformConfigService {
             'max_book_price',
             'min_rental_price',
             'max_rental_price',
+            'rental_period_days',
           ],
         },
       },
@@ -64,7 +78,21 @@ export class PlatformConfigService {
       maxBookPrice: readNumber(map.get('max_book_price')) ?? DEFAULTS.maxBookPrice,
       minRentalPrice: readNumber(map.get('min_rental_price')) ?? DEFAULTS.minRentalPrice,
       maxRentalPrice: readNumber(map.get('max_rental_price')) ?? DEFAULTS.maxRentalPrice,
+      rentalPeriodDays: parseRentalPeriodDays(map.get('rental_period_days')),
     };
+  }
+
+  async getPublicCommerceConfig(): Promise<PublicCommerceConfig> {
+    const settings = await this.getCommerceSettings();
+    return {
+      rentalPeriodDays: settings.rentalPeriodDays,
+      currency: settings.currency,
+    };
+  }
+
+  async getRentalPeriodDays(): Promise<[number, number]> {
+    const settings = await this.getCommerceSettings();
+    return settings.rentalPeriodDays;
   }
 
   async updateCommerceSettings(
@@ -99,6 +127,10 @@ export class PlatformConfigService {
     if (input.maxRentalPrice !== undefined) {
       updates.push({ key: 'max_rental_price', value: input.maxRentalPrice });
     }
+    if (input.rentalPeriodDays !== undefined) {
+      assertValidRentalPeriodDays(input.rentalPeriodDays);
+      updates.push({ key: 'rental_period_days', value: input.rentalPeriodDays });
+    }
 
     for (const row of updates) {
       await this.prisma.platformConfig.upsert({
@@ -122,9 +154,9 @@ export class PlatformConfigService {
     return settings.currency;
   }
 
-  async getCommissionRateForOrderType(type: 'purchase' | 'rental_15' | 'rental_30') {
+  async getCommissionRateForOrderType(type: import('@easybookshelf/database').OrderItemType) {
     const settings = await this.getCommerceSettings();
-    return type === 'purchase' ? settings.purchaseCommissionRate : settings.rentalCommissionRate;
+    return isRentalOrderType(type) ? settings.rentalCommissionRate : settings.purchaseCommissionRate;
   }
 
   async getSubscriberPurchaseDiscountRate(): Promise<number> {

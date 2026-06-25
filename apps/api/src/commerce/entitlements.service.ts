@@ -6,6 +6,7 @@ import {
   Prisma,
 } from '@easybookshelf/database';
 import { PrismaService } from '../prisma/prisma.service';
+import { isRentalOrderType, resolveRentalDays } from './rental-pricing';
 
 @Injectable()
 export class EntitlementsService {
@@ -42,6 +43,10 @@ export class EntitlementsService {
       return { allowed: true };
     }
 
+    if (!isRentalOrderType(type)) {
+      return { allowed: true };
+    }
+
     const activeRental = active.some((e) => e.type === EntitlementType.rental);
     if (activeRental) {
       return { allowed: false, reason: 'You already have an active rental for this book' };
@@ -56,6 +61,7 @@ export class EntitlementsService {
       id: string;
       bookId: string;
       type: OrderItemType;
+      rentalDays?: number | null;
     },
     userId: string,
   ) {
@@ -64,12 +70,9 @@ export class EntitlementsService {
         ? EntitlementType.purchase
         : EntitlementType.rental;
 
+    const rentalDays = resolveRentalDays(orderItem.type, orderItem.rentalDays);
     const expiresAt =
-      orderItem.type === OrderItemType.rental_15
-        ? addDays(new Date(), 15)
-        : orderItem.type === OrderItemType.rental_30
-          ? addDays(new Date(), 30)
-          : null;
+      rentalDays != null ? addDays(new Date(), rentalDays) : null;
 
     return tx.entitlement.create({
       data: {

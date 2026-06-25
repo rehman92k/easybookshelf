@@ -46,9 +46,17 @@ export interface Book {
 
 export interface BookPrice {
   purchasePrice: number;
+  rentals: RentalPriceOption[];
+  /** @deprecated Use rentals — kept for backward compatibility */
   rental15Price: number;
+  /** @deprecated Use rentals — kept for backward compatibility */
   rental30Price: number;
   currency: string;
+}
+
+export interface RentalPriceOption {
+  days: number;
+  price: number;
 }
 
 export interface Category {
@@ -80,7 +88,7 @@ export interface BookDetail extends Book {
 }
 
 // Commerce
-export type OrderItemType = 'purchase' | 'rental_15' | 'rental_30';
+export type OrderItemType = 'purchase' | 'rental' | 'rental_15' | 'rental_30';
 export type OrderStatus = 'pending' | 'paid' | 'failed' | 'refunded';
 export type EntitlementType = 'purchase' | 'rental';
 export type EntitlementStatus = 'active' | 'expired' | 'revoked';
@@ -209,6 +217,12 @@ export interface PlatformCommerceSettings {
   maxBookPrice: number;
   minRentalPrice: number;
   maxRentalPrice: number;
+  rentalPeriodDays: [number, number];
+}
+
+export interface PublicCommerceConfig {
+  rentalPeriodDays: [number, number];
+  currency: string;
 }
 
 export interface PlatformCommissionConfig {
@@ -222,6 +236,7 @@ export interface BookPricingQuote {
   bookId: string;
   bookSlug: string;
   type: OrderItemType;
+  rentalDays: number | null;
   currency: string;
   listPrice: number;
   chargedPrice: number;

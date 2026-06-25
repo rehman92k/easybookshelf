@@ -3,6 +3,7 @@ import { BookFormat } from '@easybookshelf/database';
 import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
+  ArrayMaxSize,
   IsArray,
   IsEnum,
   IsInt,
@@ -17,6 +18,20 @@ import {
   ValidateNested,
 } from 'class-validator';
 
+class RentalPriceDto {
+  @ApiProperty({ example: 15 })
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  days!: number;
+
+  @ApiProperty({ example: 49 })
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(9)
+  @Max(999)
+  price!: number;
+}
+
 class BookPricesDto {
   @ApiProperty({ example: 299 })
   @IsNumber({ maxDecimalPlaces: 2 })
@@ -24,17 +39,19 @@ class BookPricesDto {
   @Max(9999)
   purchase!: number;
 
-  @ApiProperty({ example: 49 })
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(9)
-  @Max(999)
-  rental15!: number;
-
-  @ApiProperty({ example: 79 })
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(9)
-  @Max(999)
-  rental30!: number;
+  @ApiProperty({
+    type: [RentalPriceDto],
+    example: [
+      { days: 15, price: 49 },
+      { days: 30, price: 79 },
+    ],
+  })
+  @IsArray()
+  @ArrayMinSize(2)
+  @ArrayMaxSize(2)
+  @ValidateNested({ each: true })
+  @Type(() => RentalPriceDto)
+  rentals!: RentalPriceDto[];
 }
 
 export class CreatePublisherBookDto {

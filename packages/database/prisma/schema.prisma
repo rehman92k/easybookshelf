@@ -69,6 +69,7 @@ enum ProcessingStatus {
 
 enum OrderItemType {
   purchase
+  rental
   rental_15
   rental_30
 }
@@ -415,6 +416,7 @@ model OrderItem {
   bookId             String        @map("book_id") @db.Uuid
   publisherId        String        @map("publisher_id") @db.Uuid
   type               OrderItemType
+  rentalDays         Int?          @map("rental_days")
   listUnitPrice      Decimal       @map("list_unit_price") @db.Decimal(10, 2)
   unitPrice          Decimal       @map("unit_price") @db.Decimal(10, 2)
   memberDiscountAmount Decimal     @default(0) @map("member_discount_amount") @db.Decimal(10, 2)

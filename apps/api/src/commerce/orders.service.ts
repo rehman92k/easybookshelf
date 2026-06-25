@@ -15,6 +15,11 @@ import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { EntitlementsService } from './entitlements.service';
 import { PlatformConfigService } from './platform-config.service';
 import { CreateOrderDto } from './dto/create-order.dto';
+import {
+  isRentalOrderType,
+  resolveRentalDays,
+  resolveRentalUnitPrice,
+} from './rental-pricing';
 
 @Injectable()
 export class OrdersService {
@@ -64,6 +69,18 @@ export class OrdersService {
       });
     }
 
+    const periodDays = await this.platformConfig.getRentalPeriodDays();
+    const rentalDays = resolveRentalDays(dto.type, dto.rentalDays, periodDays);
+
+    if (dto.type === OrderItemType.rental) {
+      if (rentalDays !== periodDays[0] && rentalDays !== periodDays[1]) {
+        throw new BadRequestException({
+          code: 'INVALID_RENTAL_DAYS',
+          message: `Rental period must be ${periodDays[0]} or ${periodDays[1]} days`,
+        });
+      }
+    }
+
     const purchaseCheck = await this.entitlements.assertCanPurchase(userId, book.id, dto.type);
     if (!purchaseCheck.allowed) {
       throw new BadRequestException({
@@ -76,7 +93,13 @@ export class OrdersService {
       where: {
         userId,
         status: OrderStatus.pending,
-        items: { some: { bookId: book.id, type: dto.type } },
+        items: {
+          some: {
+            bookId: book.id,
+            type: dto.type,
+            ...(rentalDays != null ? { rentalDays } : {}),
+          },
+        },
       },
       include: orderInclude,
       orderBy: { createdAt: 'desc' },
@@ -86,7 +109,7 @@ export class OrdersService {
       return this.toOrderSummary(existingPending);
     }
 
-    const unitPrice = this.resolveUnitPrice(dto.type, price);
+    const unitPrice = resolveRentalUnitPrice(price, dto.type, rentalDays, periodDays);
     const pricing = await this.calculateLinePricing({
       userId,
       type: dto.type,
@@ -110,6 +133,7 @@ export class OrdersService {
               bookId: book.id,
               publisherId: book.publisherId,
               type: dto.type,
+              rentalDays,
               listUnitPrice: pricing.listUnitPrice,
               unitPrice: pricing.unitPrice,
               memberDiscountAmount: pricing.memberDiscountAmount,
@@ -229,7 +253,12 @@ export class OrdersService {
     return this.getOrderForUser(order.userId, orderId);
   }
 
-  async getPricingQuote(userId: string, bookSlug: string, type: OrderItemType) {
+  async getPricingQuote(
+    userId: string,
+    bookSlug: string,
+    type: OrderItemType,
+    rentalDaysInput?: number,
+  ) {
     const book = await this.prisma.book.findFirst({
       where: { slug: bookSlug, status: BookStatus.approved },
       include: {
@@ -250,7 +279,9 @@ export class OrdersService {
       });
     }
 
-    const listPrice = this.resolveUnitPrice(type, price);
+    const periodDays = await this.platformConfig.getRentalPeriodDays();
+    const rentalDays = resolveRentalDays(type, rentalDaysInput, periodDays);
+    const listPrice = resolveRentalUnitPrice(price, type, rentalDays, periodDays);
     const pricing = await this.calculateLinePricing({
       userId,
       type,
@@ -264,6 +295,7 @@ export class OrdersService {
       bookId: book.id,
       bookSlug: book.slug,
       type,
+      rentalDays,
       currency: price.currency,
       listPrice: pricing.listUnitPrice,
       chargedPrice: pricing.unitPrice,
@@ -283,9 +315,9 @@ export class OrdersService {
     const settings = await this.platformConfig.getCommerceSettings();
     const commissionRate =
       params.publisherCommissionRate ??
-      (params.type === OrderItemType.purchase
-        ? settings.purchaseCommissionRate
-        : settings.rentalCommissionRate);
+      (isRentalOrderType(params.type)
+        ? settings.rentalCommissionRate
+        : settings.purchaseCommissionRate);
 
     const adFree = params.userId
       ? await this.subscriptions.hasAdFreeAccess(params.userId)
@@ -336,22 +368,6 @@ export class OrdersService {
       method: 'razorpay',
       rawResponse,
     });
-  }
-
-  private resolveUnitPrice(
-    type: OrderItemType,
-    price: {
-      purchasePrice: { toNumber?: () => number } | number | string;
-      rental15Price: { toNumber?: () => number } | number | string;
-      rental30Price: { toNumber?: () => number } | number | string;
-    },
-  ) {
-    const map = {
-      [OrderItemType.purchase]: price.purchasePrice,
-      [OrderItemType.rental_15]: price.rental15Price,
-      [OrderItemType.rental_30]: price.rental30Price,
-    };
-    return roundMoney(toNumber(map[type]));
   }
 
   private toOrderSummary(

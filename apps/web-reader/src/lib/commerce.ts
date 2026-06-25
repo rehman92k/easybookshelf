@@ -34,13 +34,46 @@ async function commerceFetch(path: string, init: RequestInit = {}) {
   return res;
 }
 
+export interface CheckoutSelection {
+  type: OrderItemType;
+  rentalDays?: number;
+}
+
+export function parseCheckoutSelection(
+  typeParam: string | null,
+  daysParam: string | null,
+): CheckoutSelection {
+  if (typeParam === 'rental') {
+    const rentalDays = Number(daysParam);
+    if (!Number.isInteger(rentalDays) || rentalDays < 1) {
+      return { type: 'purchase' };
+    }
+    return { type: 'rental', rentalDays };
+  }
+  if (typeParam === 'rental_15') return { type: 'rental_15' };
+  if (typeParam === 'rental_30') return { type: 'rental_30' };
+  return { type: 'purchase' };
+}
+
+export function checkoutQuery(selection: CheckoutSelection): string {
+  if (selection.type === 'rental' && selection.rentalDays) {
+    return `type=rental&days=${selection.rentalDays}`;
+  }
+  return `type=${selection.type}`;
+}
+
 export async function createOrder(input: {
   bookSlug: string;
   type: OrderItemType;
+  rentalDays?: number;
 }): Promise<OrderSummary> {
   const res = await commerceFetch('/commerce/orders', {
     method: 'POST',
-    body: JSON.stringify({ bookSlug: input.bookSlug, type: input.type }),
+    body: JSON.stringify({
+      bookSlug: input.bookSlug,
+      type: input.type,
+      ...(input.rentalDays != null ? { rentalDays: input.rentalDays } : {}),
+    }),
   });
   return res.json() as Promise<OrderSummary>;
 }
@@ -87,18 +120,24 @@ export async function fetchOrders(page = 1, pageSize = 20) {
 
 export async function fetchPricingQuote(
   bookSlug: string,
-  type: OrderItemType,
+  selection: CheckoutSelection,
 ): Promise<BookPricingQuote> {
+  const query =
+    selection.type === 'rental' && selection.rentalDays
+      ? `type=rental&days=${selection.rentalDays}`
+      : `type=${selection.type}`;
   const res = await commerceFetch(
-    `/commerce/books/by-slug/${encodeURIComponent(bookSlug)}/quote?type=${type}`,
+    `/commerce/books/by-slug/${encodeURIComponent(bookSlug)}/quote?${query}`,
   );
   return res.json() as Promise<BookPricingQuote>;
 }
 
-export function orderTypeLabel(type: OrderItemType): string {
+export function orderTypeLabel(type: OrderItemType, rentalDays?: number | null): string {
   switch (type) {
     case 'purchase':
       return 'Buy';
+    case 'rental':
+      return rentalDays ? `${rentalDays}-day rent` : 'Rent';
     case 'rental_15':
       return '15-day rent';
     case 'rental_30':

@@ -184,8 +184,15 @@ export default function AdminBooksPage() {
                     <div>
                       <dt className="text-stone-500">Rentals</dt>
                       <dd className="font-medium">
-                        {formatPrice(book.prices.rental15Price, book.prices.currency)} / 15d,{' '}
-                        {formatPrice(book.prices.rental30Price, book.prices.currency)} / 30d
+                        {(book.prices.rentals ?? [
+                          { days: 15, price: book.prices.rental15Price },
+                          { days: 30, price: book.prices.rental30Price },
+                        ])
+                          .map(
+                            (rental) =>
+                              `${formatPrice(rental.price, book.prices!.currency)} / ${rental.days}d`,
+                          )
+                          .join(', ')}
                       </dd>
                     </div>
                   </>

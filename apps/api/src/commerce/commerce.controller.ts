@@ -9,7 +9,6 @@ import {
   Query,
   Req,
 } from '@nestjs/common';
-import { OrderItemType } from '@easybookshelf/database';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { RawBodyRequest } from '@nestjs/common';
 import type { Request } from 'express';
@@ -19,6 +18,8 @@ import { VerifyPaymentDto } from './dto/verify-payment.dto';
 import { EntitlementsService } from './entitlements.service';
 import { OrdersService } from './orders.service';
 import { PaymentsService } from './payments.service';
+import { PlatformConfigService } from './platform-config.service';
+import { parseOrderItemTypeFromQuery } from './rental-pricing';
 
 @ApiTags('commerce')
 @Controller({ path: 'commerce', version: '1' })
@@ -27,7 +28,15 @@ export class CommerceController {
     private readonly orders: OrdersService,
     private readonly payments: PaymentsService,
     private readonly entitlements: EntitlementsService,
+    private readonly platformConfig: PlatformConfigService,
   ) {}
+
+  @Get('config')
+  @Public()
+  @ApiOperation({ summary: 'Public commerce config (rental periods, currency)' })
+  getCommerceConfig() {
+    return this.platformConfig.getPublicCommerceConfig();
+  }
 
   @Post('orders')
   @ApiBearerAuth()
@@ -109,14 +118,9 @@ export class CommerceController {
     @CurrentUser() user: RequestUser,
     @Param('slug') slug: string,
     @Query('type') type?: string,
+    @Query('days') days?: string,
   ) {
-    const orderType = parseOrderItemType(type);
-    return this.orders.getPricingQuote(user.userId, slug, orderType);
+    const parsed = parseOrderItemTypeFromQuery(type, days);
+    return this.orders.getPricingQuote(user.userId, slug, parsed.type, parsed.rentalDays);
   }
-}
-
-function parseOrderItemType(value?: string): OrderItemType {
-  if (value === 'rental_15') return OrderItemType.rental_15;
-  if (value === 'rental_30') return OrderItemType.rental_30;
-  return OrderItemType.purchase;
 }

@@ -4,10 +4,12 @@ import type {
   Category,
   Language,
   PaginatedResponse,
+  PublicCommerceConfig,
   PublisherBook,
   PublisherEarnings,
   PublisherProfile,
   PublisherType,
+  RentalPriceOption,
   Settlement,
 } from '@easybookshelf/shared-types';
 import { getAccessToken } from './auth';
@@ -34,6 +36,14 @@ async function authFetch(path: string, init: RequestInit = {}) {
   }
 
   return res;
+}
+
+export async function fetchCommerceConfig(): Promise<PublicCommerceConfig> {
+  const res = await fetch(`${API_URL}/commerce/config`, { credentials: 'include' });
+  if (!res.ok) {
+    throw new Error('Could not load commerce settings');
+  }
+  return res.json() as Promise<PublicCommerceConfig>;
 }
 
 export async function fetchPublisherProfile(): Promise<PublisherProfile> {
@@ -89,7 +99,7 @@ export async function createPublisherBook(input: {
   previewPageCount?: number;
   categoryIds: string[];
   languageIds: string[];
-  prices: { purchase: number; rental15: number; rental30: number };
+  prices: { purchase: number; rentals: RentalPriceOption[] };
 }): Promise<PublisherBook> {
   const res = await authFetch('/publisher/books', {
     method: 'POST',
@@ -110,7 +120,7 @@ export async function updatePublisherBook(
     previewPageCount?: number;
     categoryIds?: string[];
     languageIds?: string[];
-    prices?: { purchase: number; rental15: number; rental30: number };
+    prices?: { purchase: number; rentals: RentalPriceOption[] };
   },
 ): Promise<PublisherBook> {
   const res = await authFetch(`/publisher/books/${bookId}`, {

@@ -7,7 +7,7 @@ import type { BookFileFormat, BookPrice, BookPricingQuote, ReadingAccess } from 
 import { Button } from '@easybookshelf/ui';
 import { useAuth } from '@/components/auth-provider';
 import { formatPrice } from '@/lib/catalog';
-import { fetchPricingQuote } from '@/lib/commerce';
+import { checkoutQuery, fetchPricingQuote, type CheckoutSelection } from '@/lib/commerce';
 import { fetchReadingAccessBySlug } from '@/lib/reading';
 
 interface PurchaseActionsProps {
@@ -34,6 +34,13 @@ export function PurchaseActions({
   const [access, setAccess] = useState<ReadingAccess | null>(readingAccess);
   const [purchaseQuote, setPurchaseQuote] = useState<BookPricingQuote | null>(null);
 
+  const rentals = prices.rentals?.length
+    ? prices.rentals
+    : [
+        { days: 15, price: prices.rental15Price },
+        { days: 30, price: prices.rental30Price },
+      ];
+
   useEffect(() => {
     if (!user) {
       setAccess(readingAccess);
@@ -43,7 +50,7 @@ export function PurchaseActions({
     void fetchReadingAccessBySlug(slug)
       .then(setAccess)
       .catch(() => setAccess(readingAccess));
-    void fetchPricingQuote(slug, 'purchase')
+    void fetchPricingQuote(slug, { type: 'purchase' })
       .then(setPurchaseQuote)
       .catch(() => setPurchaseQuote(null));
   }, [user, slug, readingAccess]);
@@ -56,12 +63,13 @@ export function PurchaseActions({
   const readFullHref = (format: BookFileFormat) =>
     `/books/${slug}/read?mode=full&format=${format}`;
 
-  function goToCheckout(type: 'purchase' | 'rental_15' | 'rental_30') {
+  function goToCheckout(selection: CheckoutSelection) {
+    const query = checkoutQuery(selection);
     if (!user) {
-      router.push(`/login?next=${encodeURIComponent(`/books/${slug}/checkout?type=${type}`)}`);
+      router.push(`/login?next=${encodeURIComponent(`/books/${slug}/checkout?${query}`)}`);
       return;
     }
-    router.push(`/books/${slug}/checkout?type=${type}`);
+    router.push(`/books/${slug}/checkout?${query}`);
   }
 
   const memberDiscountActive =
@@ -93,18 +101,17 @@ export function PurchaseActions({
             </>
           )}
         </div>
-        <div className="rounded-lg border border-stone-200 p-4 dark:border-stone-700">
-          <p className="text-sm text-stone-500">15-day rent</p>
-          <p className="mt-1 text-xl font-semibold">
-            {formatPrice(prices.rental15Price, prices.currency)}
-          </p>
-        </div>
-        <div className="rounded-lg border border-stone-200 p-4 dark:border-stone-700">
-          <p className="text-sm text-stone-500">30-day rent</p>
-          <p className="mt-1 text-xl font-semibold">
-            {formatPrice(prices.rental30Price, prices.currency)}
-          </p>
-        </div>
+        {rentals.map((rental) => (
+          <div
+            key={rental.days}
+            className="rounded-lg border border-stone-200 p-4 dark:border-stone-700"
+          >
+            <p className="text-sm text-stone-500">{rental.days}-day rent</p>
+            <p className="mt-1 text-xl font-semibold">
+              {formatPrice(rental.price, prices.currency)}
+            </p>
+          </div>
+        ))}
       </div>
 
       <div className="mt-6 flex flex-wrap gap-3">
@@ -130,19 +137,19 @@ export function PurchaseActions({
           </>
         ) : (
           <>
-            <Button disabled={loading} onClick={() => goToCheckout('purchase')}>
+            <Button disabled={loading} onClick={() => goToCheckout({ type: 'purchase' })}>
               Buy now
             </Button>
-            <Button
-              variant="secondary"
-              disabled={loading}
-              onClick={() => goToCheckout('rental_15')}
-            >
-              Rent 15 days
-            </Button>
-            <Button variant="ghost" disabled={loading} onClick={() => goToCheckout('rental_30')}>
-              Rent 30 days
-            </Button>
+            {rentals.map((rental, index) => (
+              <Button
+                key={rental.days}
+                variant={index === 0 ? 'secondary' : 'ghost'}
+                disabled={loading}
+                onClick={() => goToCheckout({ type: 'rental', rentalDays: rental.days })}
+              >
+                Rent {rental.days} days
+              </Button>
+            ))}
           </>
         )}
 

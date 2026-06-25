@@ -11,6 +11,7 @@ import { fetchCurrentUser, refreshAccessTokenFromBearer } from '@/lib/auth';
 import {
   canEditPublisherBook,
   fetchCategories,
+  fetchCommerceConfig,
   fetchLanguages,
   fetchPublisherBook,
   submitBookForReview,
@@ -43,8 +44,8 @@ export default function EditBookPage() {
   const [categoryId, setCategoryId] = useState('');
   const [languageId, setLanguageId] = useState('');
   const [purchase, setPurchase] = useState('299');
-  const [rental15, setRental15] = useState('49');
-  const [rental30, setRental30] = useState('79');
+  const [rentalPeriodDays, setRentalPeriodDays] = useState<[number, number]>([15, 30]);
+  const [rentalPrices, setRentalPrices] = useState<[string, string]>(['49', '79']);
   const [epubFile, setEpubFile] = useState<File | null>(null);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
@@ -63,12 +64,15 @@ export default function EditBookPage() {
         await refreshAccessTokenFromBearer();
         if (cancelled) return;
 
-        const [loadedBook, cats, langs] = await Promise.all([
+        const [loadedBook, cats, langs, commerce] = await Promise.all([
           fetchPublisherBook(bookId),
           fetchCategories(),
           fetchLanguages(),
+          fetchCommerceConfig(),
         ]);
         if (cancelled) return;
+
+        setRentalPeriodDays(commerce.rentalPeriodDays);
 
         if (!canEditPublisherBook(loadedBook)) {
           setInitError(
@@ -90,8 +94,14 @@ export default function EditBookPage() {
         setLanguageId(loadedBook.languages[0]?.id ?? langs[0]?.id ?? '');
         if (loadedBook.prices) {
           setPurchase(String(loadedBook.prices.purchasePrice));
-          setRental15(String(loadedBook.prices.rental15Price));
-          setRental30(String(loadedBook.prices.rental30Price));
+          const rentals = loadedBook.prices.rentals ?? [
+            { days: commerce.rentalPeriodDays[0], price: loadedBook.prices.rental15Price },
+            { days: commerce.rentalPeriodDays[1], price: loadedBook.prices.rental30Price },
+          ];
+          setRentalPrices([
+            String(rentals[0]?.price ?? '49'),
+            String(rentals[1]?.price ?? '79'),
+          ]);
         }
         setReady(true);
       } catch (err) {
@@ -131,8 +141,10 @@ export default function EditBookPage() {
         languageIds: [languageId],
         prices: {
           purchase: Number(purchase),
-          rental15: Number(rental15),
-          rental30: Number(rental30),
+          rentals: [
+            { days: rentalPeriodDays[0], price: Number(rentalPrices[0]) },
+            { days: rentalPeriodDays[1], price: Number(rentalPrices[1]) },
+          ],
         },
       });
 
@@ -381,30 +393,34 @@ export default function EditBookPage() {
               />
             </div>
             <div>
-              <label htmlFor="rental-15" className="text-sm font-medium">
-                15-day rent (₹)
+              <label htmlFor="rental-0" className="text-sm font-medium">
+                {rentalPeriodDays[0]}-day rent (₹)
               </label>
               <input
-                id="rental-15"
+                id="rental-0"
                 required
                 type="number"
                 min={9}
-                value={rental15}
-                onChange={(e) => setRental15(e.target.value)}
+                value={rentalPrices[0]}
+                onChange={(e) =>
+                  setRentalPrices((prev) => [e.target.value, prev[1]] as [string, string])
+                }
                 className="mt-1 w-full rounded-lg border border-stone-300 px-4 py-2 text-sm dark:border-stone-700 dark:bg-stone-900"
               />
             </div>
             <div>
-              <label htmlFor="rental-30" className="text-sm font-medium">
-                30-day rent (₹)
+              <label htmlFor="rental-1" className="text-sm font-medium">
+                {rentalPeriodDays[1]}-day rent (₹)
               </label>
               <input
-                id="rental-30"
+                id="rental-1"
                 required
                 type="number"
                 min={9}
-                value={rental30}
-                onChange={(e) => setRental30(e.target.value)}
+                value={rentalPrices[1]}
+                onChange={(e) =>
+                  setRentalPrices((prev) => [prev[0], e.target.value] as [string, string])
+                }
                 className="mt-1 w-full rounded-lg border border-stone-300 px-4 py-2 text-sm dark:border-stone-700 dark:bg-stone-900"
               />
             </div>

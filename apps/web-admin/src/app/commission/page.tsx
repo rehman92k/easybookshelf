@@ -34,6 +34,8 @@ export default function AdminCommissionPage() {
     purchaseCommissionPercent: '15',
     rentalCommissionPercent: '10',
     subscriberDiscountPercent: '10',
+    rentalPeriodShort: '15',
+    rentalPeriodLong: '30',
   });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -58,6 +60,8 @@ export default function AdminCommissionPage() {
           purchaseCommissionPercent: rateInput(data.purchaseCommissionRate),
           rentalCommissionPercent: rateInput(data.rentalCommissionRate),
           subscriberDiscountPercent: rateInput(data.subscriberPurchaseDiscountRate),
+          rentalPeriodShort: String(data.rentalPeriodDays[0]),
+          rentalPeriodLong: String(data.rentalPeriodDays[1]),
         });
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Could not load settings');
@@ -73,10 +77,17 @@ export default function AdminCommissionPage() {
     setError(null);
     setMessage(null);
     try {
+      const shortDays = Number(draft.rentalPeriodShort);
+      const longDays = Number(draft.rentalPeriodLong);
+      if (!Number.isInteger(shortDays) || !Number.isInteger(longDays) || shortDays >= longDays) {
+        throw new Error('Rental periods must be two different day values (shorter first).');
+      }
+
       const updated = await updateCommerceSettings({
         purchaseCommissionRate: parseRateInput(draft.purchaseCommissionPercent),
         rentalCommissionRate: parseRateInput(draft.rentalCommissionPercent),
         subscriberPurchaseDiscountRate: parseRateInput(draft.subscriberDiscountPercent),
+        rentalPeriodDays: [shortDays, longDays],
       });
       setSettings(updated);
       setMessage('Commerce settings saved');
@@ -139,7 +150,45 @@ export default function AdminCommissionPage() {
                   }
                   className={inputClassName}
                 />
-                <p className="mt-1 text-xs text-stone-400">Default 10% on 15/30-day rentals</p>
+                <p className="mt-1 text-xs text-stone-400">Default 10% on rentals</p>
+              </div>
+            </div>
+          </Card>
+
+          <Card>
+            <h2 className="font-serif text-lg font-semibold">Rental periods</h2>
+            <p className="mt-1 text-sm text-stone-500">
+              Two rental lengths offered on every book. Publishers set prices for each period on
+              upload.
+            </p>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className={labelClassName}>Shorter rental (days)</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="365"
+                  step="1"
+                  value={draft.rentalPeriodShort}
+                  onChange={(e) =>
+                    setDraft((prev) => ({ ...prev, rentalPeriodShort: e.target.value }))
+                  }
+                  className={inputClassName}
+                />
+              </div>
+              <div>
+                <label className={labelClassName}>Longer rental (days)</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="365"
+                  step="1"
+                  value={draft.rentalPeriodLong}
+                  onChange={(e) =>
+                    setDraft((prev) => ({ ...prev, rentalPeriodLong: e.target.value }))
+                  }
+                  className={inputClassName}
+                />
               </div>
             </div>
           </Card>
@@ -170,7 +219,8 @@ export default function AdminCommissionPage() {
             <p className="text-sm text-stone-500">
               Current: purchase {percentLabel(settings.purchaseCommissionRate)}, rental{' '}
               {percentLabel(settings.rentalCommissionRate)}, member discount{' '}
-              {percentLabel(settings.subscriberPurchaseDiscountRate)} on buys.
+              {percentLabel(settings.subscriberPurchaseDiscountRate)} on buys. Rental periods:{' '}
+              {settings.rentalPeriodDays[0]} and {settings.rentalPeriodDays[1]} days.
             </p>
           )}
 

@@ -1,13 +1,19 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { BookStatus } from '@easybookshelf/database';
+import { PlatformConfigService } from '../commerce/platform-config.service';
+import { serializeBookPrice } from '../commerce/rental-pricing';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class WishlistService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly platformConfig: PlatformConfigService,
+  ) {}
 
   async list(userId: string) {
-    const rows = await this.prisma.wishlist.findMany({
+    const [rows, periodDays] = await Promise.all([
+      this.prisma.wishlist.findMany({
       where: {
         userId,
         book: { status: BookStatus.approved },
@@ -20,7 +26,9 @@ export class WishlistService {
         },
       },
       orderBy: { addedAt: 'desc' },
-    });
+      }),
+      this.platformConfig.getRentalPeriodDays(),
+    ]);
 
     return rows.map((row) => ({
       bookId: row.bookId,
@@ -31,14 +39,7 @@ export class WishlistService {
         slug: row.book.slug,
         authorName: row.book.authorName,
         coverImageUrl: row.book.coverImageUrl,
-        prices: row.book.prices[0]
-          ? {
-              purchasePrice: Number(row.book.prices[0].purchasePrice),
-              rental15Price: Number(row.book.prices[0].rental15Price),
-              rental30Price: Number(row.book.prices[0].rental30Price),
-              currency: row.book.prices[0].currency,
-            }
-          : null,
+        prices: serializeBookPrice(row.book.prices[0], periodDays),
       },
     }));
   }

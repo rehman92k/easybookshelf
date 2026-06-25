@@ -14,6 +14,8 @@ import { randomUUID } from 'crypto';
 import { extname } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
+import { PlatformConfigService } from '../commerce/platform-config.service';
+import { mapRentalsToSlots, serializeBookPrice } from '../commerce/rental-pricing';
 import { PublisherService } from './publisher.service';
 import { CreatePublisherBookDto } from './dto/create-publisher-book.dto';
 import { UpdatePublisherBookDto } from './dto/update-publisher-book.dto';
@@ -31,6 +33,7 @@ export class PublisherBooksService {
     private readonly prisma: PrismaService,
     private readonly publisherService: PublisherService,
     private readonly storage: StorageService,
+    private readonly platformConfig: PlatformConfigService,
   ) {}
 
   async listBooks(userId: string, page = 1, pageSize = 20) {
@@ -39,7 +42,7 @@ export class PublisherBooksService {
 
     const where = { publisherId: publisher.id };
 
-    const [books, total] = await Promise.all([
+    const [books, total, periodDays] = await Promise.all([
       this.prisma.book.findMany({
         where,
         skip,
@@ -48,10 +51,11 @@ export class PublisherBooksService {
         include: bookInclude,
       }),
       this.prisma.book.count({ where }),
+      this.platformConfig.getRentalPeriodDays(),
     ]);
 
     return {
-      data: books.map((book) => this.toPublisherBook(book)),
+      data: books.map((book) => this.toPublisherBook(book, periodDays)),
       total,
       page,
       pageSize,
@@ -61,21 +65,26 @@ export class PublisherBooksService {
 
   async getBook(userId: string, bookId: string) {
     const publisher = await this.publisherService.requirePublisher(userId);
-    const book = await this.prisma.book.findFirst({
-      where: { id: bookId, publisherId: publisher.id },
-      include: bookInclude,
-    });
+    const [book, periodDays] = await Promise.all([
+      this.prisma.book.findFirst({
+        where: { id: bookId, publisherId: publisher.id },
+        include: bookInclude,
+      }),
+      this.platformConfig.getRentalPeriodDays(),
+    ]);
 
     if (!book) {
       throw new NotFoundException({ code: 'BOOK_NOT_FOUND', message: 'Book not found' });
     }
 
-    return this.toPublisherBook(book);
+    return this.toPublisherBook(book, periodDays);
   }
 
   async createBook(userId: string, dto: CreatePublisherBookDto) {
     const publisher = await this.publisherService.requirePublisher(userId);
     const slug = await this.generateUniqueSlug(dto.title);
+    const periodDays = await this.platformConfig.getRentalPeriodDays();
+    const rentalSlots = mapRentalsToSlots(dto.prices.rentals, periodDays);
 
     const book = await this.prisma.$transaction(async (tx) => {
       const created = await tx.book.create({
@@ -97,8 +106,8 @@ export class PublisherBooksService {
         data: {
           bookId: created.id,
           purchasePrice: dto.prices.purchase,
-          rental15Price: dto.prices.rental15,
-          rental30Price: dto.prices.rental30,
+          rental15Price: rentalSlots.rental15Price,
+          rental30Price: rentalSlots.rental30Price,
           currency: 'INR',
         },
       });
@@ -123,7 +132,7 @@ export class PublisherBooksService {
       });
     });
 
-    return this.toPublisherBook(book);
+    return this.toPublisherBook(book, periodDays);
   }
 
   async updateBook(userId: string, bookId: string, dto: UpdatePublisherBookDto) {
@@ -157,6 +166,9 @@ export class PublisherBooksService {
       });
     }
 
+    const periodDays = await this.platformConfig.getRentalPeriodDays();
+    const rentalSlots = dto.prices ? mapRentalsToSlots(dto.prices.rentals, periodDays) : null;
+
     const updated = await this.prisma.$transaction(async (tx) => {
       await tx.book.update({
         where: { id: book.id },
@@ -172,13 +184,13 @@ export class PublisherBooksService {
         },
       });
 
-      if (dto.prices) {
+      if (dto.prices && rentalSlots) {
         await tx.bookPrice.create({
           data: {
             bookId: book.id,
             purchasePrice: dto.prices.purchase,
-            rental15Price: dto.prices.rental15,
-            rental30Price: dto.prices.rental30,
+            rental15Price: rentalSlots.rental15Price,
+            rental30Price: rentalSlots.rental30Price,
             currency: 'INR',
           },
         });
@@ -210,7 +222,7 @@ export class PublisherBooksService {
       });
     });
 
-    return this.toPublisherBook(updated);
+    return this.toPublisherBook(updated, periodDays);
   }
 
   async uploadFile(
@@ -313,7 +325,8 @@ export class PublisherBooksService {
       include: bookInclude,
     });
 
-    return this.toPublisherBook(updated);
+    const periodDays = await this.platformConfig.getRentalPeriodDays();
+    return this.toPublisherBook(updated, periodDays);
   }
 
   async deleteBook(userId: string, bookId: string) {
@@ -380,7 +393,8 @@ export class PublisherBooksService {
       include: bookInclude,
     });
 
-    return this.toPublisherBook(updated);
+    const periodDays = await this.platformConfig.getRentalPeriodDays();
+    return this.toPublisherBook(updated, periodDays);
   }
 
   private assertBookEditable(status: BookStatus) {
@@ -523,7 +537,8 @@ export class PublisherBooksService {
     return `${base}-${randomUUID().slice(0, 8)}`;
   }
 
-  private toPublisherBook(book: {
+  private toPublisherBook(
+    book: {
     id: string;
     title: string;
     subtitle: string | null;
@@ -555,7 +570,9 @@ export class PublisherBooksService {
     }[];
     categories: { category: { id: string; name: string; slug: string } }[];
     languages: { language: { id: string; code: string; name: string } }[];
-  }) {
+  },
+    periodDays: [number, number],
+  ) {
     const price = book.prices[0];
     return {
       id: book.id,
@@ -575,12 +592,7 @@ export class PublisherBooksService {
       createdAt: book.createdAt.toISOString(),
       updatedAt: book.updatedAt.toISOString(),
       prices: price
-        ? {
-            purchasePrice: Number(price.purchasePrice),
-            rental15Price: Number(price.rental15Price),
-            rental30Price: Number(price.rental30Price),
-            currency: price.currency,
-          }
+        ? serializeBookPrice(price as import('../commerce/rental-pricing').BookPriceRow, periodDays)
         : null,
       files: book.files.map((file) => this.toBookFile(file)),
       categories: book.categories.map((c) => ({

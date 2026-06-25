@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { BookStatus } from '@easybookshelf/database';
 import { Prisma } from '@easybookshelf/database';
+import { PlatformConfigService } from '../commerce/platform-config.service';
+import { serializeBookPrice } from '../commerce/rental-pricing';
 import { PrismaService } from '../prisma/prisma.service';
 
 const bookInclude = {
@@ -14,7 +16,10 @@ type BookWithRelations = Prisma.BookGetPayload<{ include: typeof bookInclude }>;
 
 @Injectable()
 export class BooksService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly platformConfig: PlatformConfigService,
+  ) {}
 
   async listBooks(params: {
     page?: number;
@@ -48,7 +53,7 @@ export class BooksService {
         : {}),
     };
 
-    const [books, total] = await Promise.all([
+    const [books, total, periodDays] = await Promise.all([
       this.prisma.book.findMany({
         where,
         skip,
@@ -57,10 +62,11 @@ export class BooksService {
         include: bookInclude,
       }),
       this.prisma.book.count({ where }),
+      this.platformConfig.getRentalPeriodDays(),
     ]);
 
     return {
-      data: books.map((b) => this.toListItem(b)),
+      data: books.map((b) => this.toListItem(b, periodDays)),
       total,
       page,
       pageSize,
@@ -69,22 +75,25 @@ export class BooksService {
   }
 
   async getBookBySlug(slug: string) {
-    const book = await this.prisma.book.findFirst({
-      where: { slug, status: BookStatus.approved },
-      include: bookInclude,
-    });
+    const [book, periodDays] = await Promise.all([
+      this.prisma.book.findFirst({
+        where: { slug, status: BookStatus.approved },
+        include: bookInclude,
+      }),
+      this.platformConfig.getRentalPeriodDays(),
+    ]);
 
     if (!book) {
       throw new NotFoundException({ code: 'BOOK_NOT_FOUND', message: 'Book not found' });
     }
 
-    return this.toDetail(book);
+    return this.toDetail(book, periodDays);
   }
 
-  private toListItem(book: BookWithRelations) {
+  private toListItem(book: BookWithRelations, periodDays: [number, number]) {
     return {
       ...this.toBookBase(book),
-      prices: this.toPrice(book.prices[0]),
+      prices: serializeBookPrice(book.prices[0], periodDays),
       categories: book.categories.map((c) => ({
         id: c.category.id,
         name: c.category.name,
@@ -98,11 +107,11 @@ export class BooksService {
     };
   }
 
-  private toDetail(book: BookWithRelations) {
+  private toDetail(book: BookWithRelations, periodDays: [number, number]) {
     return {
       ...this.toBookBase(book),
       description: book.description,
-      prices: this.toPrice(book.prices[0]),
+      prices: serializeBookPrice(book.prices[0], periodDays),
       categories: book.categories.map((c) => ({
         id: c.category.id,
         name: c.category.name,
@@ -135,16 +144,6 @@ export class BooksService {
       publisherName: book.publisher.name,
       featured: book.featured,
       publishedAt: book.publishedAt?.toISOString() ?? null,
-    };
-  }
-
-  private toPrice(price: BookWithRelations['prices'][0] | undefined) {
-    if (!price) return null;
-    return {
-      purchasePrice: Number(price.purchasePrice),
-      rental15Price: Number(price.rental15Price),
-      rental30Price: Number(price.rental30Price),
-      currency: price.currency,
     };
   }
 }

@@ -10,6 +10,8 @@ import {
   ProcessingStatus,
 } from '@easybookshelf/database';
 import { PrismaService } from '../prisma/prisma.service';
+import { PlatformConfigService } from '../commerce/platform-config.service';
+import { serializeBookPrice } from '../commerce/rental-pricing';
 
 const bookInclude = {
   publisher: {
@@ -25,7 +27,10 @@ const bookInclude = {
 
 @Injectable()
 export class AdminBooksService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly platformConfig: PlatformConfigService,
+  ) {}
 
   async listBooks(
     page = 1,
@@ -47,7 +52,7 @@ export class AdminBooksService {
         : {}),
     };
 
-    const [books, total] = await Promise.all([
+    const [books, total, periodDays] = await Promise.all([
       this.prisma.book.findMany({
         where,
         skip,
@@ -56,10 +61,11 @@ export class AdminBooksService {
         include: bookInclude,
       }),
       this.prisma.book.count({ where }),
+      this.platformConfig.getRentalPeriodDays(),
     ]);
 
     return {
-      data: books.map((book) => this.toAdminBook(book)),
+      data: books.map((book) => this.toAdminBook(book, periodDays)),
       total,
       page,
       pageSize,
@@ -68,16 +74,19 @@ export class AdminBooksService {
   }
 
   async getBook(bookId: string) {
-    const book = await this.prisma.book.findUnique({
-      where: { id: bookId },
-      include: bookInclude,
-    });
+    const [book, periodDays] = await Promise.all([
+      this.prisma.book.findUnique({
+        where: { id: bookId },
+        include: bookInclude,
+      }),
+      this.platformConfig.getRentalPeriodDays(),
+    ]);
 
     if (!book) {
       throw new NotFoundException({ code: 'BOOK_NOT_FOUND', message: 'Book not found' });
     }
 
-    return this.toAdminBook(book);
+    return this.toAdminBook(book, periodDays);
   }
 
   async approveBook(bookId: string, actorId: string, ipAddress?: string) {
@@ -119,7 +128,8 @@ export class AdminBooksService {
       return result;
     });
 
-    return this.toAdminBook(updated);
+    const periodDays = await this.platformConfig.getRentalPeriodDays();
+    return this.toAdminBook(updated, periodDays);
   }
 
   async rejectBook(
@@ -165,10 +175,12 @@ export class AdminBooksService {
       return result;
     });
 
-    return this.toAdminBook(updated);
+    const periodDays = await this.platformConfig.getRentalPeriodDays();
+    return this.toAdminBook(updated, periodDays);
   }
 
-  private toAdminBook(book: {
+  private toAdminBook(
+    book: {
     id: string;
     title: string;
     subtitle: string | null;
@@ -208,7 +220,9 @@ export class AdminBooksService {
     }[];
     categories: { category: { id: string; name: string; slug: string } }[];
     languages: { language: { id: string; code: string; name: string } }[];
-  }) {
+  },
+    periodDays: [number, number],
+  ) {
     const price = book.prices[0];
 
     return {
@@ -228,14 +242,7 @@ export class AdminBooksService {
       publishedAt: book.publishedAt?.toISOString() ?? null,
       createdAt: book.createdAt.toISOString(),
       updatedAt: book.updatedAt.toISOString(),
-      prices: price
-        ? {
-            purchasePrice: Number(price.purchasePrice),
-            rental15Price: Number(price.rental15Price),
-            rental30Price: Number(price.rental30Price),
-            currency: price.currency,
-          }
-        : null,
+      prices: serializeBookPrice(price as import('../commerce/rental-pricing').BookPriceRow, periodDays),
       files: book.files.map((file) => ({
         id: file.id,
         format: file.format,
